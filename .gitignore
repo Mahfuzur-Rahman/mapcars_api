@@ -1,0 +1,63 @@
+# ─────────────────────────────────────────────────────────────
+# Mapcars API — .NET 9 .gitignore
+# Schema lives in database/*.sql; real secrets live in
+# .NET user-secrets (outside the repo) — never commit them.
+# ─────────────────────────────────────────────────────────────
+
+# Build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Ll]og/
+[Ll]ogs/
+artifacts/
+publish/
+PublishProfiles/
+
+# Build / restore artifacts
+project.lock.json
+project.fragment.lock.json
+*.nupkg
+*.snupkg
+*.dll
+*.exe
+*.pdb
+*.cache
+*.tmp_proj
+*.vspscc
+*.vssscc
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.userprefs
+*.sln.docstates
+*_i.c
+*_p.c
+.dotnet/
+
+# Test results / coverage
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.coverage
+*.coveragexml
+coverage/
+
+# Secrets / local config (use dotnet user-secrets instead)
+appsettings.*.local.json
+secrets.json
+*.pfx
+*.key
+*.pem
