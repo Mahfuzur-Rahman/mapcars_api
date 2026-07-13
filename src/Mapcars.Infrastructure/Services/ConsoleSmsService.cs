@@ -9,6 +9,8 @@ namespace Mapcars.Infrastructure.Services;
 /// </summary>
 public class ConsoleSmsService(ILogger<ConsoleSmsService> logger) : ISmsService
 {
+    public string ProviderName => "console";
+
     public Task SendAsync(string toPhone, string message, CancellationToken ct = default)
     {
         logger.LogWarning("[DEV SMS] To: {Phone} | {Message}", toPhone, message);

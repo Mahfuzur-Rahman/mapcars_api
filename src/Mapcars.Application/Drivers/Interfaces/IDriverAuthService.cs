@@ -10,6 +10,7 @@ public interface IDriverAuthService
 
     // Email flow
     Task<OtpSentResponse> SignUpWithEmailAsync(string email, string password, string fullName, CancellationToken ct = default);
+    Task<OtpSentResponse> ResendEmailOtpAsync(string email, CancellationToken ct = default);
     Task<AuthResponse> VerifyEmailOtpAsync(string email, string code, CancellationToken ct = default);
     Task<AuthResponse> LoginWithEmailAsync(string email, string password, CancellationToken ct = default);
 

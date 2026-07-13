@@ -54,17 +54,27 @@ Mapcars.Infrastructure ← Data layer: EF Core DbContext, repositories, migratio
   keys → copy the *Secret key* (`sk_test_...`). Webhook secret comes from
   Developers → Webhooks when you add an endpoint.
 
-## Where secrets go (do NOT commit real keys)
+## Configuration (test setup — no secrets needed)
 
-`appsettings*.json` holds only **placeholders**. Put real dev keys in **.NET user
-secrets** (stored outside the repo):
+> **This is a test/staging setup.** All config lives in a **single, committed
+> `appsettings.json`** — there is **one** file and **no user-secrets** to set up.
+> Clone → `dotnet run` and it works. The keys/DB here are throwaway **test**
+> credentials only.
 
-```powershell
-cd src/Mapcars.Api
-dotnet user-secrets init
-dotnet user-secrets set "Mapbox:AccessToken" "pk.your_real_token"
-dotnet user-secrets set "Stripe:SecretKey" "sk_test_your_real_key"
-```
+| Key | Value | Notes |
+|-----|-------|-------|
+| `ConnectionStrings:Postgres` | Aiven staging DB (`MCDev`) | paste the real Aiven **test** password over `YOUR_AIVEN_PASSWORD` |
+| `Jwt:Secret` | test signing key (already set) | fine for test; rotate before production |
+| `Stripe:*`, `Mapbox:AccessToken` | placeholders | fill with **test-mode** keys if you exercise those features |
+| `Email:Provider`, `Sms:Provider` | empty | falls back to console stubs (no real send) |
+
+There is **no `appsettings.Development.json`** anymore and **no `dotnet
+user-secrets`** step. If the app can't find `Jwt:Secret`, [Program.cs](src/Mapcars.Api/Program.cs)
+falls back to an insecure placeholder so it still boots.
+
+⚠️ **Before production:** move real secrets out of `appsettings.json` into
+`appsettings.Production.json` (uploaded to the host, git-ignored) or the host's
+environment variables, and set a fresh `Jwt:Secret`.
 
 ## Run it
 
@@ -96,7 +106,8 @@ docker run --name mapcars-pg -e POSTGRES_USER=mapcars -e POSTGRES_PASSWORD=mapca
 docker run --name mapcars-redis -p 6379:6379 -d redis:7
 ```
 
-The dev connection strings in `appsettings.Development.json` already match these.
+The connection strings in `appsettings.json` point at the shared Aiven test DB;
+swap them for the local Docker values above if you'd rather run Postgres locally.
 
 2. Apply migrations (creates the `riders`, `drivers`, `trips` tables):
 

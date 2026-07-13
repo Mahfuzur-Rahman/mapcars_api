@@ -9,6 +9,8 @@ namespace Mapcars.Infrastructure.Services;
 /// </summary>
 public class ConsoleEmailService(ILogger<ConsoleEmailService> logger) : IEmailService
 {
+    public string ProviderName => "console";
+
     public Task SendAsync(string toEmail, string subject, string body, CancellationToken ct = default)
     {
         logger.LogWarning("[DEV EMAIL] To: {Email} | Subject: {Subject} | {Body}", toEmail, subject, body);

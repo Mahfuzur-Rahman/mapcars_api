@@ -52,5 +52,26 @@ public class AdminRepository(AppDbContext db) : IAdminRepository
     }
 
     public Task<List<Admin>> GetAllAsync(CancellationToken ct = default)
-        => db.Admins.Include(a => a.Role).ToListAsync(ct);
+        => db.Admins.Include(a => a.Role).OrderBy(a => a.CreatedAtUtc).ToListAsync(ct);
+
+    // ── Menu management (SuperAdmin) ────────────────────────────────────────────
+
+    public Task<List<Menu>> GetAllMenusAsync(CancellationToken ct = default)
+        => db.Menus.Where(m => m.IsActive).OrderBy(m => m.SortOrder).ToListAsync(ct);
+
+    public Task<List<int>> GetRoleMenuIdsAsync(int roleId, CancellationToken ct = default)
+        => db.RoleMenus.Where(rm => rm.RoleId == roleId).Select(rm => rm.MenuId).ToListAsync(ct);
+
+    public Task<List<AdminMenuPermission>> GetAdminOverridesAsync(Guid adminId, CancellationToken ct = default)
+        => db.AdminMenuPermissions.Where(amp => amp.AdminId == adminId).ToListAsync(ct);
+
+    public async Task ReplaceAdminOverridesAsync(
+        Guid adminId, IEnumerable<AdminMenuPermission> overrides, CancellationToken ct = default)
+    {
+        var existing = await db.AdminMenuPermissions
+            .Where(amp => amp.AdminId == adminId)
+            .ToListAsync(ct);
+        db.AdminMenuPermissions.RemoveRange(existing);
+        await db.AdminMenuPermissions.AddRangeAsync(overrides, ct);
+    }
 }

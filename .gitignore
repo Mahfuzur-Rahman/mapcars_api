@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────
 # Mapcars API — .NET 9 .gitignore
 # Schema lives in database/*.sql; real secrets live in
-# .NET user-secrets (outside the repo) — never commit them.
+# appsettings.json, which is gitignored — never commit it.
 # ─────────────────────────────────────────────────────────────
 
 # Build output
@@ -55,9 +55,11 @@ project.fragment.lock.json
 *.coveragexml
 coverage/
 
-# Secrets / local config (use dotnet user-secrets instead)
-appsettings.*.local.json
+# Secrets / local config — appsettings.json holds real keys and stays out of git
+appsettings.json
+appsettings.*.json
 secrets.json
+SEED_CREDENTIALS.md
 *.pfx
 *.key
 *.pem

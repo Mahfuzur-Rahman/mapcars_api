@@ -5,6 +5,7 @@ using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Domain.Entities;
 using Mapcars.Domain.Exceptions;
+using Microsoft.Extensions.Logging;
 
 namespace Mapcars.Application.Admins.Services;
 
@@ -14,6 +15,8 @@ public class AdminAuthService(
     IAdminRepository adminRepo,
     IJwtService jwtService,
     IPasswordHasher hasher,
+    IEmailService email,
+    ILogger<AdminAuthService> logger,
     IUnitOfWork uow) : IAdminAuthService
 {
     public async Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken ct = default)
@@ -49,6 +52,29 @@ public class AdminAuthService(
 
         // Reload with role for the response
         var saved = await adminRepo.GetByIdWithRoleAsync(admin.Id, ct) ?? admin;
+
+        // Notify the new admin their account is ready. Non-fatal: a mail failure
+        // must not roll back a successful account creation.
+        try
+        {
+            await email.SendAsync(
+                saved.Email,
+                "Your MAP CARS admin account is ready",
+                $"""
+                 Hi {saved.FullName},<br><br>
+                 An administrator account has been created for you on the MAP CARS admin portal
+                 with the role <strong>{saved.Role?.Name}</strong>.<br><br>
+                 You can sign in with your email address (<strong>{saved.Email}</strong>) and the
+                 password provided to you.<br><br>
+                 For security, please change your password after your first sign-in.
+                 """,
+                ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to send welcome email to new admin {Email}", saved.Email);
+        }
+
         return saved.ToResponse();
     }
 

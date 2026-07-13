@@ -25,6 +25,11 @@ public class RiderAuthController(IRiderAuthService authService) : ControllerBase
     public async Task<IActionResult> Signup([FromBody] EmailSignUpRequest req, CancellationToken ct)
         => Ok(await authService.SignUpWithEmailAsync(req.Email, req.Password, req.FullName, ct));
 
+    /// <summary>Resends the email OTP (invalidates the previous code). For unverified accounts.</summary>
+    [HttpPost("resend-email")]
+    public async Task<IActionResult> ResendEmail([FromBody] ResendEmailRequest req, CancellationToken ct)
+        => Ok(await authService.ResendEmailOtpAsync(req.Email, ct));
+
     /// <summary>Verifies the email OTP sent during signup.</summary>
     [HttpPost("verify-email")]
     public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest req, CancellationToken ct)

@@ -24,6 +24,7 @@ public static class DependencyInjection
         // Application services (one line per feature service).
         services.AddScoped<IRiderService, RiderService>();
         services.AddScoped<IAdminAuthService, AdminAuthService>();
+        services.AddScoped<IAdminManagementService, AdminManagementService>();
         services.AddScoped<IRiderAuthService, RiderAuthService>();
         services.AddScoped<IDriverAuthService, DriverAuthService>();
 

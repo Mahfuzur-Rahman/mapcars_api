@@ -94,6 +94,24 @@ public class DriverAuthService(
         };
     }
 
+    public async Task<OtpSentResponse> ResendEmailOtpAsync(string email, CancellationToken ct = default)
+    {
+        var normalized = email.ToLowerInvariant().Trim();
+
+        var driver = await repo.FindByEmailAsync(normalized, ct)
+            ?? throw new NotFoundException("Driver", normalized);
+        if (driver.IsEmailVerified)
+            throw new DomainException("This email is already verified. Please log in.");
+
+        // Issuing a new code invalidates the previous one (see OtpService).
+        var devCode = await otpService.CreateAndSendEmailOtpAsync(UserType, normalized, ct);
+        return new OtpSentResponse
+        {
+            Message = $"A new verification code was sent to {Mask(normalized)}",
+            DevCode = devCode,
+        };
+    }
+
     public async Task<AuthResponse> VerifyEmailOtpAsync(string email, string code, CancellationToken ct = default)
     {
         var normalized = email.ToLowerInvariant().Trim();

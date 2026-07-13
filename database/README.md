@@ -17,6 +17,7 @@ Scripts are numbered and must be run in order against a fresh `mapcars` database
 psql -U postgres -d mapcars -f 001_admin_auth.sql
 psql -U postgres -d mapcars -f 002_riders_drivers_trips.sql
 psql -U postgres -d mapcars -f 003_verification_codes.sql
+psql -U postgres -d mapcars -f 004_verification_codes_sent_via.sql
 ```
 
 All scripts are idempotent (`CREATE TABLE IF NOT EXISTS`, `ON CONFLICT DO NOTHING`),
@@ -27,6 +28,7 @@ so re-running them is safe.
 | `001_admin_auth.sql` | `roles`, `admins`, `menus`, `role_menus`, `admin_menu_permissions` (+ seed data) |
 | `002_riders_drivers_trips.sql` | `riders`, `drivers`, `trips` |
 | `003_verification_codes.sql` | `verification_codes` |
+| `004_verification_codes_sent_via.sql` | `verification_codes` (+ `sent_via` column, cleanup index) |
 
 ## Conventions
 

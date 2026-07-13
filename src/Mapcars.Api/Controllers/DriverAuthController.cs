@@ -20,6 +20,10 @@ public class DriverAuthController(IDriverAuthService authService) : ControllerBa
     public async Task<IActionResult> Signup([FromBody] DriverEmailSignUpRequest req, CancellationToken ct)
         => Ok(await authService.SignUpWithEmailAsync(req.Email, req.Password, req.FullName, ct));
 
+    [HttpPost("resend-email")]
+    public async Task<IActionResult> ResendEmail([FromBody] DriverResendEmailRequest req, CancellationToken ct)
+        => Ok(await authService.ResendEmailOtpAsync(req.Email, ct));
+
     [HttpPost("verify-email")]
     public async Task<IActionResult> VerifyEmail([FromBody] DriverVerifyEmailRequest req, CancellationToken ct)
         => Ok(await authService.VerifyEmailOtpAsync(req.Email, req.Code, ct));

@@ -7,6 +7,7 @@ namespace Mapcars.Application.Riders.Dtos;
 public record PhoneRequest(string Phone);
 public record VerifyOtpRequest(string Phone, string Code);
 public record EmailSignUpRequest(string Email, string Password, string FullName);
+public record ResendEmailRequest(string Email);
 public record VerifyEmailRequest(string Email, string Code);
 public record EmailLoginRequest(string Email, string Password);
 public record GoogleAuthRequest(string IdToken);

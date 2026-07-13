@@ -10,4 +10,7 @@ public class VerificationCode
     public DateTime ExpiresAt { get; set; }
     public DateTime? UsedAt { get; set; }
     public DateTime CreatedAt { get; set; }
+
+    // Which provider delivered this OTP: twilio | telnyx | smtp | resend | console
+    public string? SentVia { get; set; }
 }

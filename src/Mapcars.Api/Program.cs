@@ -30,8 +30,16 @@ builder.Services.AddCors(options =>
 });
 
 // JWT authentication
-var jwtSecret = builder.Configuration["Jwt:Secret"]
-    ?? throw new InvalidOperationException("Jwt:Secret not configured. Run: dotnet user-secrets set \"Jwt:Secret\" \"<your-32-char-key>\"");
+var jwtSecret = builder.Configuration["Jwt:Secret"];
+if (string.IsNullOrWhiteSpace(jwtSecret))
+{
+    // No secret configured (e.g. a credential-free test deploy). Fall back to an
+    // insecure placeholder so the app can still boot and serve the API explorer.
+    // Tokens issued/validated with this key are NOT secure — set a real
+    // Jwt:Secret (user-secrets locally, appsettings.Production.json on the host)
+    // for anything beyond testing.
+    jwtSecret = "mapcars-insecure-testing-only-secret-key-change-me";
+}
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -61,14 +69,21 @@ var app = builder.Build();
 // Translates domain/application exceptions into proper HTTP responses.
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
+// API explorer is exposed in every environment so the deployed API can be
+// browsed at /scalar/v1 (handy for testing on hosts like Somee).
+app.MapOpenApi();
+app.MapScalarApiReference();
+
+// Base URL → the interactive explorer, so hitting "/" isn't a bare 404.
+app.MapGet("/", () => Results.Redirect("/scalar/v1"));
+
+// Only enforce HTTPS locally. On managed hosts (Somee, etc.) TLS is terminated
+// at the proxy, so redirecting here would cause a redirect loop.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
-    // Interactive API explorer at /scalar/v1 — reads the OpenAPI doc above.
-    app.MapScalarApiReference();
+    app.UseHttpsRedirection();
 }
 
-app.UseHttpsRedirection();
 app.UseCors(CorsPolicy);
 
 app.UseAuthentication();
