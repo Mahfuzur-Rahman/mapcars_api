@@ -18,6 +18,10 @@ psql -U postgres -d mapcars -f 001_admin_auth.sql
 psql -U postgres -d mapcars -f 002_riders_drivers_trips.sql
 psql -U postgres -d mapcars -f 003_verification_codes.sql
 psql -U postgres -d mapcars -f 004_verification_codes_sent_via.sql
+psql -U postgres -d mapcars -f 005_documents.sql
+psql -U postgres -d mapcars -f 006_driver_payout_accounts.sql
+psql -U postgres -d mapcars -f 007_payouts.sql
+psql -U postgres -d mapcars -f 008_fare_charts_and_trip_pricing.sql
 ```
 
 All scripts are idempotent (`CREATE TABLE IF NOT EXISTS`, `ON CONFLICT DO NOTHING`),
@@ -29,6 +33,10 @@ so re-running them is safe.
 | `002_riders_drivers_trips.sql` | `riders`, `drivers`, `trips` |
 | `003_verification_codes.sql` | `verification_codes` |
 | `004_verification_codes_sent_via.sql` | `verification_codes` (+ `sent_via` column, cleanup index) |
+| `005_documents.sql` | `documents` |
+| `006_driver_payout_accounts.sql` | `driver_payout_accounts` |
+| `007_payouts.sql` | `payouts` |
+| `008_fare_charts_and_trip_pricing.sql` | `fare_charts` (+ fare breakdown columns on `trips`) |
 
 ## Conventions
 

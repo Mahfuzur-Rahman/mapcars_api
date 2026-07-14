@@ -17,6 +17,13 @@ public class AppDbContext : DbContext, IUnitOfWork
     public DbSet<Rider> Riders => Set<Rider>();
     public DbSet<Driver> Drivers => Set<Driver>();
     public DbSet<Trip> Trips => Set<Trip>();
+    public DbSet<Document> Documents => Set<Document>();
+    public DbSet<DriverPayoutAccount> DriverPayoutAccounts => Set<DriverPayoutAccount>();
+    public DbSet<Payout> Payouts => Set<Payout>();
+
+    // Pricing — fare chart version history (database-first via database/008_*.sql).
+    // Redis is the hot cache; this table is the durable source of truth.
+    public DbSet<FareChartRecord> FareCharts => Set<FareChartRecord>();
 
     // Admin auth (database-first — tables created via database/001_admin_auth.sql)
     public DbSet<Admin> Admins => Set<Admin>();

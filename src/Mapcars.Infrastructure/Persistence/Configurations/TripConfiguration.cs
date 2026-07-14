@@ -17,6 +17,12 @@ public class TripConfiguration : IEntityTypeConfiguration<Trip>
         builder.Property(t => t.Status).HasConversion<string>().HasMaxLength(30);
         builder.Property(t => t.FareAmount).HasPrecision(10, 2);
 
+        // Pricing snapshot (set at booking).
+        builder.Property(t => t.Tier).HasMaxLength(30);
+        builder.Property(t => t.SurgeMultiplier).HasPrecision(6, 3);
+        builder.Property(t => t.PlatformFeeAmount).HasPrecision(10, 2);
+        builder.Property(t => t.DriverEarnings).HasPrecision(10, 2);
+
         builder.HasOne(t => t.Rider)
             .WithMany(r => r.Trips)
             .HasForeignKey(t => t.RiderId)
