@@ -1,35 +1,94 @@
+using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Interfaces;
+using Mapcars.Application.Dispatch.Interfaces;
+using Mapcars.Application.Drivers.Interfaces;
+using Mapcars.Application.Notifications.Dtos;
+using Mapcars.Application.Notifications.Interfaces;
+using Mapcars.Application.Pricing;
 using Mapcars.Application.Pricing.Dtos;
 using Mapcars.Application.Pricing.Interfaces;
+using Mapcars.Application.Realtime.Interfaces;
+using Mapcars.Application.Riders.Interfaces;
 using Mapcars.Application.Trips.Dtos;
 using Mapcars.Application.Trips.Interfaces;
 using Mapcars.Application.Trips.Mapping;
+using Mapcars.Application.Vehicles.Interfaces;
 using Mapcars.Domain.Entities;
+using Mapcars.Domain.Enums;
+using Mapcars.Domain.Exceptions;
 
 namespace Mapcars.Application.Trips.Services;
 
 /// <summary>
 /// Business logic for trips. Listing is read-only; booking (<see cref="CreateAsync"/>)
 /// prices the chosen tier authoritatively from the fare chart and snapshots the
-/// breakdown onto the trip so it's independent of later chart edits.
+/// breakdown onto the trip so it's independent of later chart edits. Lifecycle
+/// transitions (accept/arrive/start/complete/cancel) are plain state changes —
+/// there is no real-time dispatch/matching yet (a driver discovers open trips
+/// via <see cref="ListAvailableAsync"/>, a simple unfiltered list).
 /// </summary>
 public class TripService : ITripService
 {
     private readonly ITripRepository _trips;
+    private readonly IRiderRepository _riders;
+    private readonly IDriverRepository _drivers;
+    private readonly IVehicleRepository _vehicles;
     private readonly IPricingService _pricing;
     private readonly IUnitOfWork _uow;
+    private readonly ITripNotifier _notifier;
+    private readonly IDispatchService _dispatch;
+    private readonly IPushService _push;
 
-    public TripService(ITripRepository trips, IPricingService pricing, IUnitOfWork uow)
+    public TripService(
+        ITripRepository trips,
+        IRiderRepository riders,
+        IDriverRepository drivers,
+        IVehicleRepository vehicles,
+        IPricingService pricing,
+        IUnitOfWork uow,
+        ITripNotifier notifier,
+        IDispatchService dispatch,
+        IPushService push)
     {
         _trips = trips;
+        _riders = riders;
+        _drivers = drivers;
+        _vehicles = vehicles;
         _pricing = pricing;
         _uow = uow;
+        _notifier = notifier;
+        _dispatch = dispatch;
+        _push = push;
     }
 
     public async Task<IReadOnlyList<TripResponse>> ListForRiderAsync(Guid riderId, CancellationToken ct = default)
     {
         var trips = await _trips.ListForRiderAsync(riderId, ct);
         return trips.Select(t => t.ToResponse()).ToList();
+    }
+
+    public async Task<IReadOnlyList<TripResponse>> ListForDriverAsync(Guid driverId, CancellationToken ct = default)
+    {
+        var trips = await _trips.ListForDriverAsync(driverId, ct);
+        return trips.Select(t => t.ToResponse()).ToList();
+    }
+
+    public async Task<IReadOnlyList<TripResponse>> ListAvailableAsync(CancellationToken ct = default)
+    {
+        var trips = await _trips.ListAvailableAsync(ct);
+        return trips.Select(t => t.ToResponse()).ToList();
+    }
+
+    public async Task<IReadOnlyList<TripResponse>> ListAvailableNearbyAsync(
+        double lat, double lng, double radiusMeters, CancellationToken ct = default)
+    {
+        var trips = await _trips.ListAvailableAsync(ct);
+        return trips
+            .Select(t => (trip: t, meters: FareCalculator.HaversineMeters(lat, lng, t.PickupLat, t.PickupLng)))
+            .Where(x => x.meters <= radiusMeters)
+            .OrderBy(x => x.meters)
+            .Select(x => x.trip.ToResponse())
+            .ToList();
     }
 
     public async Task<TripResponse> CreateAsync(Guid riderId, CreateTripRequest req, CancellationToken ct = default)
@@ -58,16 +117,248 @@ public class TripService : ITripService
             DurationMinutes = req.DurationMinutes,
             SurgeMultiplier = fare.SurgeMultiplier,
             FareAmount = Gbp(fare.FarePence),
+            TipAmount = req.TipAmount < 0 ? 0 : req.TipAmount,
             PlatformFeeAmount = Gbp(fare.PlatformFeePence),
             DriverEarnings = Gbp(fare.DriverEarningsPence),
             FareChartVersion = chart.Version,
+
+            // Payment: cash by default (settled in person on completion — no charge).
+            // Card is accepted here but not yet charged; Stripe capture lands next.
+            PaymentMethod = ParsePaymentMethod(req.PaymentMethod),
+            PaymentStatus = PaymentStatus.Pending,
         };
 
         await _trips.AddAsync(trip, ct);
         await _uow.SaveChangesAsync(ct);
 
+        // Broadcast the open request to all nearby drivers' boards (best-effort —
+        // a broadcast hiccup never fails the booking; drivers also poll the board).
+        try
+        {
+            await _dispatch.BroadcastAsync(trip, ct);
+        }
+        catch
+        {
+            /* realtime broadcast is non-critical to booking */
+        }
+
         return trip.ToResponse();
     }
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    public async Task<TripResponse> AcceptAsync(Guid driverId, Guid tripId, CancellationToken ct = default)
+    {
+        var driver = await _drivers.GetByIdAsync(driverId, ct) ?? throw new NotFoundException("Driver", driverId);
+        if (driver.Status != DriverStatus.Approved || !driver.IsOnline)
+            throw new DomainException("You must be an approved, online driver to accept trips.");
+
+        // Broadcast model — first-come wins. The atomic Requested→DriverAssigned is
+        // the single guard against two drivers grabbing the same trip; false means
+        // someone beat us to it (or it was cancelled).
+        if (!await _trips.TryAssignAsync(tripId, driverId, ct))
+            throw new DomainException("This trip has already been taken.");
+
+        var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
+
+        // Drop it off every other nearby driver's board — best-effort, a
+        // realtime hiccup here must never fail the accept that already succeeded.
+        try { await _dispatch.WithdrawAsync(trip, ct); }
+        catch { /* non-critical */ }
+
+        return await NotifiedAsync(trip, ct);
+    }
+
+    public async Task<TripResponse> ArriveAsync(Guid driverId, Guid tripId, CancellationToken ct = default)
+        => await TransitionAsync(driverId, tripId, TripStatus.DriverAssigned, TripStatus.DriverArrived, ct);
+
+    public async Task<TripResponse> StartAsync(Guid driverId, Guid tripId, CancellationToken ct = default)
+        => await TransitionAsync(driverId, tripId, TripStatus.DriverArrived, TripStatus.InProgress, ct);
+
+    public async Task<TripResponse> CompleteAsync(Guid driverId, Guid tripId, CancellationToken ct = default)
+    {
+        var trip = await GetOwnedByDriverAsync(driverId, tripId, ct);
+
+        if (trip.Status != TripStatus.InProgress)
+            throw new DomainException("Only a trip that is in progress can be completed.");
+
+        trip.Status = TripStatus.Completed;
+        trip.CompletedAtUtc = DateTime.UtcNow;
+
+        // Cash is settled in person at drop-off — mark it collected now. Card is
+        // left Pending here; the Stripe capture step (next) will settle it.
+        if (trip.PaymentMethod == PaymentMethod.Cash && trip.PaymentStatus == PaymentStatus.Pending)
+        {
+            trip.PaymentStatus = PaymentStatus.Collected;
+            trip.PaidAtUtc = DateTime.UtcNow;
+        }
+
+        await _uow.SaveChangesAsync(ct);
+        return await NotifiedAsync(trip, ct);
+    }
+
+    /// <summary>Maps the request's payment-method string to the enum (defaults to cash).</summary>
+    private static PaymentMethod ParsePaymentMethod(string? raw) =>
+        string.Equals(raw, "card", StringComparison.OrdinalIgnoreCase)
+            ? PaymentMethod.Card
+            : PaymentMethod.Cash;
+
+    public async Task<TripResponse> CancelAsync(
+        string callerType, Guid callerId, Guid tripId, CancelTripRequest request, CancellationToken ct = default)
+    {
+        var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
+
+        var isRider = callerType == "rider" && trip.RiderId == callerId;
+        var isDriver = callerType == "driver" && trip.DriverId == callerId;
+        if (!isRider && !isDriver)
+            throw new NotFoundException("Trip", tripId);
+
+        if (trip.Status is TripStatus.Completed or TripStatus.CancelledByRider or TripStatus.CancelledByDriver)
+            throw new DomainException("This trip can no longer be cancelled.");
+
+        // No-show only makes sense for a driver who actually arrived and waited.
+        var isNoShow = isDriver && request.IsNoShow && trip.Status == TripStatus.DriverArrived;
+
+        trip.Status = isRider ? TripStatus.CancelledByRider : TripStatus.CancelledByDriver;
+        trip.CancelledAtUtc = DateTime.UtcNow;
+        trip.CancelledReason = request.Reason;
+        trip.IsNoShow = isNoShow;
+
+        if (isRider)
+        {
+            var rider = await _riders.GetByIdAsync(callerId, ct);
+            if (rider is not null) rider.CancellationCount++;
+        }
+        else
+        {
+            var driver = await _drivers.GetByIdAsync(callerId, ct);
+            if (driver is not null) driver.CancellationCount++;
+        }
+
+        if (isNoShow)
+        {
+            var rider = await _riders.GetByIdAsync(trip.RiderId, ct);
+            if (rider is not null) rider.NoShowCount++;
+        }
+
+        await _uow.SaveChangesAsync(ct);
+
+        // If this was still an open, unassigned request, it was on nearby
+        // drivers' boards — pull it off theirs too (best-effort).
+        if (trip.DriverId is null)
+        {
+            try { await _dispatch.WithdrawAsync(trip, ct); }
+            catch { /* non-critical */ }
+        }
+
+        return await NotifiedAsync(trip, ct);
+    }
+
+    public async Task<TripResponse> GetForUserAsync(
+        string callerType, Guid callerId, Guid tripId, CancellationToken ct = default)
+    {
+        var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
+
+        var isRider = callerType == "rider" && trip.RiderId == callerId;
+        var isDriver = callerType == "driver" && trip.DriverId == callerId;
+        if (!isRider && !isDriver) throw new NotFoundException("Trip", tripId); // don't leak others' trips
+
+        var driver = await BuildDriverInfoAsync(trip.DriverId, ct);
+        return trip.ToResponse(driver);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>Looks up the assigned driver's public details for the rider's
+    /// tracking card. Null until a driver is assigned.</summary>
+    private async Task<TripDriverInfo?> BuildDriverInfoAsync(Guid? driverId, CancellationToken ct)
+    {
+        if (driverId is null) return null;
+        var driver = await _drivers.GetByIdAsync(driverId.Value, ct);
+        if (driver is null) return null;
+
+        var vehicle = await _vehicles.GetByDriverAsync(driverId.Value, ct);
+        return new TripDriverInfo(
+            driver.FullName ?? "Your driver",
+            driver.AverageRating,
+            vehicle is null ? null : $"{vehicle.Colour} {vehicle.Make} {vehicle.Model}",
+            vehicle?.RegistrationNumber);
+    }
+
+    private async Task<Trip> GetOwnedByDriverAsync(Guid driverId, Guid tripId, CancellationToken ct)
+    {
+        var trip = await _trips.GetByIdAsync(tripId, ct);
+        if (trip is null || trip.DriverId != driverId)
+            throw new NotFoundException("Trip", tripId);
+        return trip;
+    }
+
+    private async Task<TripResponse> TransitionAsync(
+        Guid driverId, Guid tripId, TripStatus from, TripStatus to, CancellationToken ct)
+    {
+        var trip = await GetOwnedByDriverAsync(driverId, tripId, ct);
+
+        if (trip.Status != from)
+            throw new DomainException($"Trip must be in '{from}' status for this action.");
+
+        trip.Status = to;
+        await _uow.SaveChangesAsync(ct);
+        return await NotifiedAsync(trip, ct);
+    }
+
+    /// <summary>Map a trip to its response and push it to the trip's realtime group.</summary>
+    private async Task<TripResponse> NotifiedAsync(Trip trip, CancellationToken ct)
+    {
+        var driver = await BuildDriverInfoAsync(trip.DriverId, ct);
+        var response = trip.ToResponse(driver);
+        await _notifier.TripUpdatedAsync(response, ct);
+
+        // Fire a push to the relevant party for lifecycle transitions that matter
+        // when the app is backgrounded. Best-effort (PushService swallows errors).
+        await PushForStatusAsync(trip, ct);
+        return response;
+    }
+
+    /// <summary>
+    /// Sends a push for the transitions worth interrupting a user for. The status
+    /// itself says who to notify — a <c>CancelledBy*</c> tells us who cancelled, so
+    /// we alert the other party.
+    /// </summary>
+    private async Task PushForStatusAsync(Trip trip, CancellationToken ct)
+    {
+        switch (trip.Status)
+        {
+            case TripStatus.DriverAssigned:
+                await NotifyRiderAsync(trip, "Driver on the way",
+                    "A driver accepted your trip and is heading to you.", ct);
+                break;
+            case TripStatus.DriverArrived:
+                await NotifyRiderAsync(trip, "Your driver has arrived",
+                    "Head out to meet your driver.", ct);
+                break;
+            case TripStatus.Completed:
+                await NotifyRiderAsync(trip, "Trip complete",
+                    "Thanks for riding with MAP CARS.", ct);
+                break;
+            case TripStatus.CancelledByDriver:
+                await NotifyRiderAsync(trip, "Trip cancelled",
+                    "Your driver cancelled the trip.", ct);
+                break;
+            case TripStatus.CancelledByRider when trip.DriverId is Guid driverId:
+                await _push.NotifyUserAsync("driver", driverId,
+                    new PushMessage("Trip cancelled", "The rider cancelled the trip.", TripData(trip)), ct);
+                break;
+        }
+    }
+
+    private Task NotifyRiderAsync(Trip trip, string title, string body, CancellationToken ct)
+        => _push.NotifyUserAsync("rider", trip.RiderId, new PushMessage(title, body, TripData(trip)), ct);
+
+    private static IReadOnlyDictionary<string, string> TripData(Trip trip) => new Dictionary<string, string>
+    {
+        ["tripId"] = trip.Id.ToString(),
+        ["status"] = trip.Status.ToString(),
+    };
 
     private static decimal Gbp(int pence) => pence / 100m;
 }

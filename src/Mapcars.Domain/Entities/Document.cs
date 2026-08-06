@@ -23,4 +23,7 @@ public class Document : BaseEntity
 
     public DocumentReviewStatus ReviewStatus { get; set; } = DocumentReviewStatus.Pending;
     public DateTime? ReviewedAtUtc { get; set; }
+
+    /// <summary>Renewal deadline for licence-like documents (PHV licence, insurance, vehicle registration, DBS).</summary>
+    public DateOnly? ExpiresOn { get; set; }
 }

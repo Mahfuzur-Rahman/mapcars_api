@@ -18,5 +18,11 @@ public class CreateTripRequestValidator : AbstractValidator<CreateTripRequest>
         RuleFor(x => x.DurationMinutes).GreaterThanOrEqualTo(0);
         RuleFor(x => x.PromoCode).MaximumLength(40);
         RuleFor(x => x.PaymentMethodId).MaximumLength(100);
+        RuleFor(x => x.PaymentMethod)
+            .Must(m => m is null ||
+                       m.Equals("cash", StringComparison.OrdinalIgnoreCase) ||
+                       m.Equals("card", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("Payment method must be 'cash' or 'card'.");
+        RuleFor(x => x.TipAmount).GreaterThanOrEqualTo(0);
     }
 }

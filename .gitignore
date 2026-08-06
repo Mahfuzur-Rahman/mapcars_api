@@ -63,3 +63,7 @@ SEED_CREDENTIALS.md
 *.pfx
 *.key
 *.pem
+
+# Firebase service account (FCM push send credentials) — never commit
+firebase-service-account.json
+**/firebase-service-account.json

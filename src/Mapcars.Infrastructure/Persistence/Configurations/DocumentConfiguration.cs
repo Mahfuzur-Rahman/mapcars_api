@@ -22,6 +22,7 @@ public class DocumentConfiguration : IEntityTypeConfiguration<Document>
         builder.Property(d => d.ContentType).HasColumnName("content_type").IsRequired().HasMaxLength(100);
         builder.Property(d => d.ReviewStatus).HasColumnName("review_status").HasConversion<string>().HasMaxLength(20);
         builder.Property(d => d.ReviewedAtUtc).HasColumnName("reviewed_at_utc");
+        builder.Property(d => d.ExpiresOn).HasColumnName("expires_on");
 
         builder.HasOne(d => d.Rider)
             .WithMany()

@@ -15,6 +15,7 @@ public record TripResponse(
     double DropoffLng,
     string Status,
     decimal? FareAmount,
+    decimal TipAmount,
     string? Tier,
     double? DistanceMiles,
     double? DurationMinutes,
@@ -22,4 +23,27 @@ public record TripResponse(
     decimal? PlatformFeeAmount,
     decimal? DriverEarnings,
     int? FareChartVersion,
-    DateTime CreatedAtUtc);
+    string PaymentMethod,
+    string PaymentStatus,
+    DateTime? PaidAtUtc,
+    DateTime CreatedAtUtc,
+    DateTime? CompletedAtUtc,
+    DateTime? CancelledAtUtc,
+    string? CancelledReason,
+    bool IsNoShow,
+    TripDriverInfo? Driver);
+
+/// <summary>
+/// The assigned driver's public details, shown on the rider's tracking card.
+/// Only populated once a driver is assigned (null before then). Deliberately
+/// excludes phone/contact details — the in-app "Call"/"Message" actions don't
+/// need the raw number client-side.
+/// </summary>
+public record TripDriverInfo(
+    string Name,
+    decimal? Rating,
+    string? Vehicle,
+    string? Plate);
+
+/// <summary>Cancel a trip. <c>IsNoShow</c> is only honoured for a driver cancelling after arriving.</summary>
+public record CancelTripRequest(string? Reason, bool IsNoShow = false);

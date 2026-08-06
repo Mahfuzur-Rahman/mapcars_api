@@ -1,11 +1,22 @@
+using Amazon.S3;
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 using Mapcars.Application.Admins.Interfaces;
 using Mapcars.Application.Common.Interfaces;
+using Mapcars.Application.Notifications.Interfaces;
 using Mapcars.Application.Documents.Interfaces;
 using Mapcars.Application.Drivers.Interfaces;
+using Mapcars.Application.Geo.Interfaces;
 using Mapcars.Application.Payments.Interfaces;
+using Mapcars.Application.Posters.Interfaces;
 using Mapcars.Application.Pricing.Interfaces;
+using Mapcars.Application.Ratings.Interfaces;
 using Mapcars.Application.Riders.Interfaces;
+using Mapcars.Application.SavedPlaces.Interfaces;
 using Mapcars.Application.Trips.Interfaces;
+using Mapcars.Application.Vehicles.Interfaces;
+using Mapcars.Infrastructure.Geo;
+using Mapcars.Infrastructure.Notifications;
 using Mapcars.Infrastructure.Options;
 using Mapcars.Infrastructure.Payments;
 using Mapcars.Infrastructure.Persistence;
@@ -18,6 +29,7 @@ using Stripe;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 
@@ -45,10 +57,16 @@ public static class DependencyInjection
         services.AddScoped<IRiderRepository, RiderRepository>();
         services.AddScoped<IDriverRepository, DriverRepository>();
         services.AddScoped<IAdminRepository, AdminRepository>();
+        services.AddScoped<IAdminReportingRepository, AdminReportingRepository>();
         services.AddScoped<ITripRepository, TripRepository>();
         services.AddScoped<IDocumentRepository, DocumentRepository>();
+        services.AddScoped<IVehicleRepository, VehicleRepository>();
+        services.AddScoped<ISavedPlaceRepository, SavedPlaceRepository>();
+        services.AddScoped<IRatingRepository, RatingRepository>();
         services.AddScoped<IDriverPayoutAccountRepository, DriverPayoutAccountRepository>();
         services.AddScoped<IPayoutRepository, PayoutRepository>();
+        services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
+        services.AddScoped<IPosterRepository, PosterRepository>();
 
         // Pricing — Redis-cached fare chart, durably backed by Postgres.
         // The multiplexer connects lazily with AbortOnConnectFail=false so the API
@@ -70,15 +88,69 @@ public static class DependencyInjection
             sp.GetRequiredService<ILogger<RedisFareChartStore>>(),
             sp.GetService<IConnectionMultiplexer>()));
 
+        // Live driver locations — Redis GEO (matching hot path). Same optional-Redis
+        // pattern as the fare store: no-ops / empty results when Redis is unavailable.
+        services.AddSingleton<IDriverLocationStore>(sp => new RedisDriverLocationStore(
+            sp.GetService<IConnectionMultiplexer>(),
+            sp.GetRequiredService<ILogger<RedisDriverLocationStore>>()));
+        services.AddHostedService<GeoStalenessSweepService>();
+
         // Security
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IOtpService, OtpService>();
         services.AddScoped<IGoogleAuthService, GoogleAuthService>();
 
-        // Storage — local disk for now; swap for an S3-backed IFileStorageService later.
+        // Storage — driven by Storage:Provider ("LocalDisk" | "R2"); defaults to
+        // local disk. R2 is a private, S3-compatible bucket (reads are always
+        // proxied through authenticated API endpoints — never a public URL).
         services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.Section));
-        services.AddScoped<IFileStorageService, LocalDiskFileStorageService>();
+        switch (configuration["Storage:Provider"]?.Trim().ToLowerInvariant())
+        {
+            case "r2":
+                var r2Section = configuration.GetSection(R2Options.Section);
+                services.Configure<R2Options>(r2Section);
+                var r2 = r2Section.Get<R2Options>()
+                    ?? throw new InvalidOperationException("Storage:Provider is 'R2' but the Storage:R2 section is missing.");
+                services.AddSingleton<IAmazonS3>(_ =>
+                {
+                    var config = new AmazonS3Config
+                    {
+                        ServiceURL = r2.ResolveServiceUrl(),
+                        // R2 requires path-style addressing; region is ignored but
+                        // the SDK needs one to compute the SigV4 signature.
+                        ForcePathStyle = true,
+                        AuthenticationRegion = "auto",
+                    };
+                    return new AmazonS3Client(r2.AccessKeyId, r2.SecretAccessKey, config);
+                });
+                services.AddScoped<IFileStorageService, R2FileStorageService>();
+                break;
+            default:
+                services.AddScoped<IFileStorageService, LocalDiskFileStorageService>();
+                break;
+        }
+
+        // Push notifications — FCM when a Firebase service account is configured
+        // (Firebase:ServiceAccountPath), else a console stub so registration/notify
+        // still works in dev without credentials. Same provider-switch shape as
+        // Email/SMS below.
+        var firebaseCredPath = configuration["Firebase:ServiceAccountPath"];
+        if (!string.IsNullOrWhiteSpace(firebaseCredPath) && System.IO.File.Exists(firebaseCredPath))
+        {
+            if (FirebaseApp.DefaultInstance is null)
+            {
+                FirebaseApp.Create(new AppOptions
+                {
+                    Credential = GoogleCredential.FromFile(firebaseCredPath),
+                });
+            }
+            services.AddSingleton<IPushSender, FcmPushSender>();
+        }
+        else
+        {
+            services.AddSingleton<IPushSender, ConsolePushSender>();
+        }
 
         // Stripe Connect — the SDK is configured via a static ApiKey (no client instance to inject).
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.Section));

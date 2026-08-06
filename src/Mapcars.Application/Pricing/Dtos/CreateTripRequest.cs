@@ -16,4 +16,6 @@ public record CreateTripRequest(
     double DistanceMiles,
     double DurationMinutes,
     string? PromoCode,
-    string? PaymentMethodId);
+    string? PaymentMethodId,
+    string? PaymentMethod = "cash",
+    decimal TipAmount = 0);

@@ -1,4 +1,5 @@
 using Mapcars.Application.Common.Dtos;
+using Mapcars.Application.Riders.Dtos;
 
 namespace Mapcars.Application.Riders.Interfaces;
 
@@ -18,5 +19,6 @@ public interface IRiderAuthService
     Task<AuthResponse> SignInWithGoogleAsync(string idToken, CancellationToken ct = default);
 
     // Profile
-    Task<AuthResponse> UpdateProfileAsync(Guid riderId, string fullName, string? email, CancellationToken ct = default);
+    Task<RiderProfileResponse> GetProfileAsync(Guid riderId, CancellationToken ct = default);
+    Task<RiderProfileResponse> UpdateProfileAsync(Guid riderId, UpdateProfileRequest request, CancellationToken ct = default);
 }

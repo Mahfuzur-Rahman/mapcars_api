@@ -23,10 +23,11 @@ public class DocumentsController : ControllerBase
 
     [HttpPost]
     [Consumes("multipart/form-data")]
+    [RequestSizeLimit(35 * 1024 * 1024)] // hard cap at the pipeline before buffering
     [ProducesResponseType(typeof(DocumentResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<DocumentResponse>> Upload(
-        [FromForm] DocumentType type, [FromForm] IFormFile file, CancellationToken ct)
+        [FromForm] DocumentType type, [FromForm] IFormFile file, [FromForm] DateOnly? expiresOn, CancellationToken ct)
     {
         if (file.Length == 0)
             return BadRequest(new { title = "The uploaded file is empty." });
@@ -37,7 +38,7 @@ public class DocumentsController : ControllerBase
 
         await using var stream = file.OpenReadStream();
         var response = await _documents.UploadAsync(
-            userType, userId.Value, type, stream, file.FileName, file.ContentType, ct);
+            userType, userId.Value, type, stream, file.FileName, file.ContentType, file.Length, expiresOn, ct);
 
         return StatusCode(StatusCodes.Status201Created, response);
     }

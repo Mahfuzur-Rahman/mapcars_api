@@ -7,4 +7,5 @@ public record DocumentResponse(
     string OriginalFileName,
     string ReviewStatus,
     DateTime CreatedAtUtc,
-    DateTime? ReviewedAtUtc);
+    DateTime? ReviewedAtUtc,
+    DateOnly? ExpiresOn);

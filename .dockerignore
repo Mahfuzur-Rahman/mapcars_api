@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+**/appsettings.json
+**/appsettings.*.json
+.git/
+.vs/
+.vscode/
+*.md
+database/

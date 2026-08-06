@@ -24,6 +24,12 @@ public class Trip : BaseEntity
     /// <summary>Final fare in GBP (incl. VAT). Priced at booking from the fare chart.</summary>
     public decimal? FareAmount { get; set; }
 
+    /// <summary>
+    /// Optional tip the rider adds at booking to attract drivers (broadcast model).
+    /// Paid on top of the fare and passed 100% to the driver — no commission.
+    /// </summary>
+    public decimal TipAmount { get; set; }
+
     // ─── Pricing snapshot (set at booking; see Application/Pricing) ──────────────
     // Captured at booking time so the fare is auditable and independent of later
     // fare-chart edits. Money in GBP (NUMERIC(10,2)); distance in miles.
@@ -48,4 +54,24 @@ public class Trip : BaseEntity
 
     /// <summary>Version of the fare chart the fare was priced against.</summary>
     public int? FareChartVersion { get; set; }
+
+    // ─── Payment ──────────────────────────────────────────────────────────────
+
+    /// <summary>How the rider pays. Defaults to cash (settled in person, no charge).</summary>
+    public PaymentMethod PaymentMethod { get; set; } = PaymentMethod.Cash;
+
+    /// <summary>Settlement state of the fare. Cash: Pending at booking → Collected on completion.</summary>
+    public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Pending;
+
+    /// <summary>When the fare was settled (cash collected / card captured). Null until paid.</summary>
+    public DateTime? PaidAtUtc { get; set; }
+
+    // ─── Lifecycle / cancellation ─────────────────────────────────────────────
+
+    public DateTime? CompletedAtUtc { get; set; }
+    public DateTime? CancelledAtUtc { get; set; }
+    public string? CancelledReason { get; set; }
+
+    /// <summary>Set only when a driver cancels after arriving because the rider never showed up.</summary>
+    public bool IsNoShow { get; set; }
 }

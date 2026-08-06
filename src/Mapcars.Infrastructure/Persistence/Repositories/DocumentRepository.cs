@@ -19,4 +19,11 @@ public class DocumentRepository : GenericRepository<Document>, IDocumentReposito
             .Where(d => d.DriverId == driverId)
             .OrderByDescending(d => d.CreatedAtUtc)
             .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<Document>> ListForDriversAsync(IReadOnlyCollection<Guid> driverIds, CancellationToken ct = default)
+        => driverIds.Count == 0
+            ? []
+            : await Set.AsNoTracking()
+                .Where(d => d.DriverId != null && driverIds.Contains(d.DriverId.Value))
+                .ToListAsync(ct);
 }

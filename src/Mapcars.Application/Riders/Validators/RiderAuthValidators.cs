@@ -59,5 +59,9 @@ public class UpdateProfileRequestValidator : AbstractValidator<UpdateProfileRequ
         RuleFor(x => x.FullName).FullName();
         When(x => !string.IsNullOrWhiteSpace(x.Email), () =>
             RuleFor(x => x.Email!).Email());
+        When(x => !string.IsNullOrWhiteSpace(x.EmergencyContactPhone), () =>
+            RuleFor(x => x.EmergencyContactPhone!).Phone());
+        RuleFor(x => x.EmergencyContactName).MaximumLength(200);
+        RuleFor(x => x.AccessibilityNeeds).MaximumLength(500);
     }
 }

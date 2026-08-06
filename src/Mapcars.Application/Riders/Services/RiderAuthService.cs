@@ -2,6 +2,7 @@ using Mapcars.Application.Admins.Interfaces;
 using Mapcars.Application.Common.Dtos;
 using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Interfaces;
+using Mapcars.Application.Riders.Dtos;
 using Mapcars.Application.Riders.Interfaces;
 using Mapcars.Domain.Entities;
 using Mapcars.Domain.Exceptions;
@@ -14,9 +15,19 @@ public class RiderAuthService(
     IOtpService otpService,
     IGoogleAuthService googleAuth,
     IJwtService jwt,
+    IAppEnvironment env,
     IUnitOfWork uow) : IRiderAuthService
 {
     private const string UserType = "rider";
+
+    // The OTP is only ever revealed to the caller in local Development (a
+    // convenience so devs can log in without a live SMS/email provider). In
+    // Production it is null — never ship the code that authenticates the user.
+    private OtpSentResponse OtpSent(string message, string code) => new()
+    {
+        Message = message,
+        DevCode = env.IsDevelopment ? code : null,
+    };
 
     // ── Phone ─────────────────────────────────────────────────────────────────
 
@@ -24,11 +35,7 @@ public class RiderAuthService(
     {
         var normalized = NormalizePhone(phone);
         var devCode = await otpService.CreateAndSendPhoneOtpAsync(UserType, normalized, ct);
-        return new OtpSentResponse
-        {
-            Message = $"Verification code sent to {Mask(normalized)}",
-            DevCode = devCode,
-        };
+        return OtpSent($"Verification code sent to {Mask(normalized)}", devCode);
     }
 
     public async Task<AuthResponse> VerifyPhoneOtpAsync(string phone, string code, CancellationToken ct = default)
@@ -88,11 +95,7 @@ public class RiderAuthService(
         await uow.SaveChangesAsync(ct);
         var devCode = await otpService.CreateAndSendEmailOtpAsync(UserType, normalized, ct);
 
-        return new OtpSentResponse
-        {
-            Message = $"Verification code sent to {Mask(normalized)}",
-            DevCode = devCode,
-        };
+        return OtpSent($"Verification code sent to {Mask(normalized)}", devCode);
     }
 
     public async Task<OtpSentResponse> ResendEmailOtpAsync(string email, CancellationToken ct = default)
@@ -106,11 +109,7 @@ public class RiderAuthService(
 
         // Issuing a new code invalidates the previous one (see OtpService).
         var devCode = await otpService.CreateAndSendEmailOtpAsync(UserType, normalized, ct);
-        return new OtpSentResponse
-        {
-            Message = $"A new verification code was sent to {Mask(normalized)}",
-            DevCode = devCode,
-        };
+        return OtpSent($"A new verification code was sent to {Mask(normalized)}", devCode);
     }
 
     public async Task<AuthResponse> VerifyEmailOtpAsync(string email, string code, CancellationToken ct = default)
@@ -149,31 +148,43 @@ public class RiderAuthService(
 
     public async Task<AuthResponse> SignInWithGoogleAsync(string idToken, CancellationToken ct = default)
     {
+        if (!googleAuth.IsConfigured)
+            throw new DomainException("Google sign-in isn't available yet. Please use your email or phone number.");
+
         var info = await googleAuth.VerifyIdTokenAsync(idToken, ct)
             ?? throw new UnauthorizedException("Invalid Google token.");
+
+        // Only an address Google says it *verified* may identify an account.
+        // An unverified one is just a string the Google account holder typed,
+        // so trusting it would let anyone who puts a rider's address on a
+        // Google account link into (or pre-claim) that rider's account. When
+        // unverified we ignore the address entirely: the rider is identified by
+        // google_sub alone and can add their email later via the profile.
+        var email = info.EmailVerified && !string.IsNullOrWhiteSpace(info.Email)
+            ? info.Email.ToLowerInvariant().Trim()
+            : null;
 
         var rider = await repo.FindByGoogleSubAsync(info.Sub, ct);
         if (rider is null)
         {
-            // Try to link to an existing email account
-            rider = string.IsNullOrEmpty(info.Email)
-                ? null
-                : await repo.FindByEmailAsync(info.Email.ToLowerInvariant(), ct);
+            // Try to link to an existing (verified-email) account
+            rider = email is null ? null : await repo.FindByEmailAsync(email, ct);
 
             if (rider is not null)
             {
-                // Link Google to the existing account
+                // Link Google to the existing account — `email` is non-null
+                // only when Google vouched for it, so this is safe.
                 rider.GoogleSub = info.Sub;
-                if (info.EmailVerified) rider.IsEmailVerified = true;
+                rider.IsEmailVerified = true;
             }
             else
             {
                 rider = new Rider
                 {
-                    Email = string.IsNullOrEmpty(info.Email) ? null : info.Email.ToLowerInvariant(),
+                    Email = email,
                     FullName = string.IsNullOrEmpty(info.Name) ? null : info.Name,
                     GoogleSub = info.Sub,
-                    IsEmailVerified = info.EmailVerified,
+                    IsEmailVerified = email is not null,
                     IsActive = true,
                 };
                 await repo.AddAsync(rider, ct);
@@ -190,27 +201,60 @@ public class RiderAuthService(
 
     // ── Profile ───────────────────────────────────────────────────────────────
 
-    public async Task<AuthResponse> UpdateProfileAsync(Guid riderId, string fullName, string? email, CancellationToken ct = default)
+    public async Task<RiderProfileResponse> GetProfileAsync(Guid riderId, CancellationToken ct = default)
+    {
+        var rider = await repo.GetByIdAsync(riderId, ct)
+            ?? throw new NotFoundException("Rider", riderId);
+        return BuildProfileResponse(rider);
+    }
+
+    public async Task<RiderProfileResponse> UpdateProfileAsync(Guid riderId, UpdateProfileRequest request, CancellationToken ct = default)
     {
         var rider = await repo.GetByIdAsync(riderId, ct)
             ?? throw new NotFoundException("Rider", riderId);
 
-        rider.FullName = fullName.Trim();
+        rider.FullName = request.FullName.Trim();
 
-        if (!string.IsNullOrWhiteSpace(email))
+        if (!string.IsNullOrWhiteSpace(request.Email))
         {
-            var normalized = email.ToLowerInvariant().Trim();
+            var normalized = request.Email.ToLowerInvariant().Trim();
             var existing = await repo.FindByEmailAsync(normalized, ct);
             if (existing is not null && existing.Id != riderId)
                 throw new DomainException("An account with this email already exists.");
             rider.Email = normalized;
         }
 
+        rider.EmergencyContactName = string.IsNullOrWhiteSpace(request.EmergencyContactName)
+            ? rider.EmergencyContactName : request.EmergencyContactName.Trim();
+        rider.EmergencyContactPhone = string.IsNullOrWhiteSpace(request.EmergencyContactPhone)
+            ? rider.EmergencyContactPhone : request.EmergencyContactPhone.Trim();
+        if (request.MarketingConsent.HasValue)
+            rider.MarketingConsent = request.MarketingConsent.Value;
+        rider.AccessibilityNeeds = string.IsNullOrWhiteSpace(request.AccessibilityNeeds)
+            ? rider.AccessibilityNeeds : request.AccessibilityNeeds.Trim();
+
         await uow.SaveChangesAsync(ct);
-        return BuildResponse(rider);
+        return BuildProfileResponse(rider);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static RiderProfileResponse BuildProfileResponse(Rider rider) => new()
+    {
+        RiderId = rider.Id,
+        FullName = rider.FullName,
+        Email = rider.Email,
+        Phone = rider.PhoneNumber,
+        EmergencyContactName = rider.EmergencyContactName,
+        EmergencyContactPhone = rider.EmergencyContactPhone,
+        MarketingConsent = rider.MarketingConsent,
+        AccessibilityNeeds = rider.AccessibilityNeeds,
+        IsProfileComplete = rider.IsProfileComplete,
+        AverageRating = rider.AverageRating,
+        RatingCount = rider.RatingCount,
+        CancellationCount = rider.CancellationCount,
+        NoShowCount = rider.NoShowCount,
+    };
 
     private AuthResponse BuildResponse(Rider rider) => new()
     {

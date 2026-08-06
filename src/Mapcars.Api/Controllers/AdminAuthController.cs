@@ -3,6 +3,7 @@ using Mapcars.Application.Admins.Dtos;
 using Mapcars.Application.Admins.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Mapcars.Api.Controllers;
 
@@ -15,6 +16,7 @@ public class AdminAuthController(IAdminAuthService authService) : ControllerBase
     /// Fails if any admin already exists (prevents takeover).
     /// </summary>
     [HttpPost("setup")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Setup([FromBody] CreateAdminRequest request, CancellationToken ct)
     {
         var result = await authService.SetupSuperAdminAsync(request, ct);
@@ -22,6 +24,7 @@ public class AdminAuthController(IAdminAuthService authService) : ControllerBase
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
         var result = await authService.LoginAsync(request, ct);

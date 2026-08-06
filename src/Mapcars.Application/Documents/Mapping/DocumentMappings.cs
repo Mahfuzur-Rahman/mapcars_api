@@ -12,5 +12,6 @@ public static class DocumentMappings
         document.OriginalFileName,
         document.ReviewStatus.ToString(),
         document.CreatedAtUtc,
-        document.ReviewedAtUtc);
+        document.ReviewedAtUtc,
+        document.ExpiresOn);
 }

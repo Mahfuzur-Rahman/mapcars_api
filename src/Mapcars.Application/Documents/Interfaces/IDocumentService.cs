@@ -13,6 +13,8 @@ public interface IDocumentService
         Stream content,
         string originalFileName,
         string contentType,
+        long fileSize,
+        DateOnly? expiresOn = null,
         CancellationToken ct = default);
 
     Task<IReadOnlyList<DocumentResponse>> ListAsync(

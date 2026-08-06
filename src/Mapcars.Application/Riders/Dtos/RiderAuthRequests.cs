@@ -11,4 +11,10 @@ public record ResendEmailRequest(string Email);
 public record VerifyEmailRequest(string Email, string Code);
 public record EmailLoginRequest(string Email, string Password);
 public record GoogleAuthRequest(string IdToken);
-public record UpdateProfileRequest(string FullName, string? Email = null);
+public record UpdateProfileRequest(
+    string FullName,
+    string? Email = null,
+    string? EmergencyContactName = null,
+    string? EmergencyContactPhone = null,
+    bool? MarketingConsent = null,
+    string? AccessibilityNeeds = null);

@@ -11,3 +11,18 @@ public record DriverResendEmailRequest(string Email);
 public record DriverVerifyEmailRequest(string Email, string Code);
 public record DriverEmailLoginRequest(string Email, string Password);
 public record DriverGoogleAuthRequest(string IdToken);
+public record UpdateDriverProfileRequest(
+    string FirstName,
+    string? LastName,
+    string? Email,
+    DateOnly? DateOfBirth,
+    string? Address,
+    string NationalIdNumber,
+    string? DrivingLicenceNumber = null,
+    string? PassportNumber = null,
+    string? EmergencyContactName = null,
+    string? EmergencyContactPhone = null,
+    bool? MarketingConsent = null);
+
+/// <summary>Toggle the authenticated driver's online/offline availability.</summary>
+public record UpdateDriverAvailabilityRequest(bool IsOnline);

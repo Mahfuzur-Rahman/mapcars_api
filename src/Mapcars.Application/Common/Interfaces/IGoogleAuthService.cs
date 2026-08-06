@@ -10,5 +10,17 @@ public class GoogleUserInfo
 
 public interface IGoogleAuthService
 {
+    /// <summary>
+    /// True when at least one OAuth client ID is configured. Without one an ID
+    /// token's audience can't be verified, so Google sign-in is refused
+    /// outright — check this first to tell the user *why* rather than returning
+    /// a misleading "invalid token".
+    /// </summary>
+    bool IsConfigured { get; }
+
+    /// <summary>
+    /// Validates the token's signature, issuer, expiry **and audience**.
+    /// Returns null when the token is invalid or the service is unconfigured.
+    /// </summary>
     Task<GoogleUserInfo?> VerifyIdTokenAsync(string idToken, CancellationToken ct = default);
 }

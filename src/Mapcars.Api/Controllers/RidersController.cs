@@ -1,5 +1,6 @@
 using Mapcars.Application.Riders.Dtos;
 using Mapcars.Application.Riders.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Mapcars.Api.Controllers;
@@ -7,9 +8,12 @@ namespace Mapcars.Api.Controllers;
 /// <summary>
 /// Thin presentation layer — translates HTTP to/from the IRiderService.
 /// No business logic here. This is the template for every feature controller.
+/// Admin-only: riders sign up/manage their own profile via RiderAuthController,
+/// not this controller — this is the admin-portal read surface (Rider List/Detail).
 /// </summary>
 [ApiController]
 [Route("api/v1/[controller]")]
+[Authorize(Roles = "SuperAdmin,Admin")]
 public class RidersController : ControllerBase
 {
     private readonly IRiderService _riders;

@@ -51,3 +51,26 @@ public class DriverGoogleAuthRequestValidator : AbstractValidator<DriverGoogleAu
     public DriverGoogleAuthRequestValidator() =>
         RuleFor(x => x.IdToken).NotEmpty().WithMessage("Google ID token is required.");
 }
+
+public class UpdateDriverProfileRequestValidator : AbstractValidator<UpdateDriverProfileRequest>
+{
+    public UpdateDriverProfileRequestValidator()
+    {
+        RuleFor(x => x.FirstName).NotEmpty().WithMessage("First name is required.").MaximumLength(100);
+        RuleFor(x => x.LastName).MaximumLength(100);
+        When(x => !string.IsNullOrWhiteSpace(x.Email), () =>
+            RuleFor(x => x.Email!).Email());
+        RuleFor(x => x.Address).MaximumLength(500);
+        RuleFor(x => x.NationalIdNumber)
+            .NotEmpty().WithMessage("National ID number is required.")
+            .MaximumLength(50);
+        RuleFor(x => x.DateOfBirth)
+            .Must(dob => dob is null || dob.Value <= DateOnly.FromDateTime(DateTime.UtcNow))
+            .WithMessage("Date of birth cannot be in the future.");
+        RuleFor(x => x.DrivingLicenceNumber).MaximumLength(20);
+        RuleFor(x => x.PassportNumber).MaximumLength(50);
+        RuleFor(x => x.EmergencyContactName).MaximumLength(200);
+        When(x => !string.IsNullOrWhiteSpace(x.EmergencyContactPhone), () =>
+            RuleFor(x => x.EmergencyContactPhone!).Phone());
+    }
+}

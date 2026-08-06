@@ -1,4 +1,5 @@
 using Mapcars.Application.Common.Dtos;
+using Mapcars.Application.Drivers.Dtos;
 
 namespace Mapcars.Application.Drivers.Interfaces;
 
@@ -16,4 +17,11 @@ public interface IDriverAuthService
 
     // Google flow
     Task<AuthResponse> SignInWithGoogleAsync(string idToken, CancellationToken ct = default);
+
+    // Profile
+    Task<DriverProfileResponse> GetProfileAsync(Guid driverId, CancellationToken ct = default);
+    Task<DriverProfileResponse> UpdateProfileAsync(Guid driverId, UpdateDriverProfileRequest req, CancellationToken ct = default);
+    Task<DriverProfileResponse> UploadProfilePictureAsync(Guid driverId, Stream content, string fileName, string contentType, long fileSize, CancellationToken ct = default);
+    Task<(Stream Content, string ContentType)?> GetProfilePictureAsync(Guid driverId, CancellationToken ct = default);
+    Task<DriverProfileResponse> SetAvailabilityAsync(Guid driverId, bool isOnline, CancellationToken ct = default);
 }

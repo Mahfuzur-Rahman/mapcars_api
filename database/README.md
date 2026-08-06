@@ -22,6 +22,15 @@ psql -U postgres -d mapcars -f 005_documents.sql
 psql -U postgres -d mapcars -f 006_driver_payout_accounts.sql
 psql -U postgres -d mapcars -f 007_payouts.sql
 psql -U postgres -d mapcars -f 008_fare_charts_and_trip_pricing.sql
+psql -U postgres -d mapcars -f 009_driver_profile_fields.sql
+psql -U postgres -d mapcars -f 010_vehicles.sql
+psql -U postgres -d mapcars -f 011_wave1_profile_fields.sql
+psql -U postgres -d mapcars -f 012_saved_places.sql
+psql -U postgres -d mapcars -f 013_trip_lifecycle.sql
+psql -U postgres -d mapcars -f 014_ratings.sql
+psql -U postgres -d mapcars -f 015_driver_verification_documents.sql
+psql -U postgres -d mapcars -f 016_fare_settings_menu.sql
+psql -U postgres -d mapcars -f 017_trip_tip.sql
 ```
 
 All scripts are idempotent (`CREATE TABLE IF NOT EXISTS`, `ON CONFLICT DO NOTHING`),
@@ -37,6 +46,15 @@ so re-running them is safe.
 | `006_driver_payout_accounts.sql` | `driver_payout_accounts` |
 | `007_payouts.sql` | `payouts` |
 | `008_fare_charts_and_trip_pricing.sql` | `fare_charts` (+ fare breakdown columns on `trips`) |
+| `009_driver_profile_fields.sql` | `drivers` (+ name/DOB/address/national ID/profile picture columns) |
+| `010_vehicles.sql` | `vehicles` (one per driver; make/model/year/colour/registration) |
+| `011_wave1_profile_fields.sql` | `riders`, `drivers` (+ emergency contact/marketing consent/accessibility columns), `vehicles` (+ PHV plate/council), `documents` (+ expiry) |
+| `012_saved_places.sql` | `saved_places` (rider's saved Home/Work/custom addresses) |
+| `013_trip_lifecycle.sql` | `trips` (+ completion/cancellation columns), `riders`/`drivers` (+ cancellation/no-show counters), `drivers` (+ online/offline toggle) |
+| `014_ratings.sql` | `ratings` (rider↔driver 1-5 star review per trip), `riders`/`drivers` (+ average rating/rating count) |
+| `015_driver_verification_documents.sql` | `drivers` (+ `passport_number`); new `DocumentType`s (Passport, DrivingLicence, VehicleBadge, BankStatement) live in app code only |
+| `016_fare_settings_menu.sql` | `menus`, `role_menus` (+ "Fare Settings" `/admin/fare` sidebar entry, granted to SuperAdmin) |
+| `017_trip_tip.sql` | `trips` (+ `TipAmount` — rider tip for the broadcast dispatch model, 100% to driver) |
 
 ## Conventions
 
