@@ -131,6 +131,17 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromMinutes(5),
             QueueLimit = 0,
         }));
+
+    // Client crash reporting (POST /api/v1/error-logs) is anonymous, so it needs
+    // a ceiling — generous enough that a genuinely broken app can report a burst
+    // of failures, tight enough that it can't be used to fill the table.
+    options.AddPolicy("errors", context =>
+        RateLimitPartition.GetFixedWindowLimiter(ClientKey(context), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 60,
+            Window = TimeSpan.FromMinutes(5),
+            QueueLimit = 0,
+        }));
 });
 
 // Realtime — SignalR with a Redis backplane (reuses the Valkey connection) so

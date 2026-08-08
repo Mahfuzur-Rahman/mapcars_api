@@ -5,6 +5,8 @@ namespace Mapcars.Application.Riders.Interfaces;
 
 public interface IRiderAuthService
 {
+    Task ChangePasswordAsync(Guid riderId, ChangePasswordRequest request, CancellationToken ct = default);
+
     // Phone flow
     Task<OtpSentResponse> SendPhoneOtpAsync(string phone, CancellationToken ct = default);
     Task<AuthResponse> VerifyPhoneOtpAsync(string phone, string code, CancellationToken ct = default);
@@ -16,7 +18,12 @@ public interface IRiderAuthService
     Task<AuthResponse> LoginWithEmailAsync(string email, string password, CancellationToken ct = default);
 
     // Google flow
-    Task<AuthResponse> SignInWithGoogleAsync(string idToken, CancellationToken ct = default);
+    /// <summary>
+    /// Google sign-in. With <paramref name="signUp"/> false (the sign-in screen)
+    /// an unknown Google account is rejected with "please sign up first" instead
+    /// of being turned into a new account.
+    /// </summary>
+    Task<AuthResponse> SignInWithGoogleAsync(string idToken, bool signUp = false, CancellationToken ct = default);
 
     // Profile
     Task<RiderProfileResponse> GetProfileAsync(Guid riderId, CancellationToken ct = default);

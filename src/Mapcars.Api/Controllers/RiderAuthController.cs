@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Mapcars.Application.Common.Dtos;
 using Mapcars.Application.Riders.Dtos;
 using Mapcars.Application.Riders.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -51,7 +52,7 @@ public class RiderAuthController(IRiderAuthService authService) : ControllerBase
     [HttpPost("google")]
     [EnableRateLimiting("auth")]
     public async Task<IActionResult> Google([FromBody] GoogleAuthRequest req, CancellationToken ct)
-        => Ok(await authService.SignInWithGoogleAsync(req.IdToken, ct));
+        => Ok(await authService.SignInWithGoogleAsync(req.IdToken, req.SignUp, ct));
 
     /// <summary>Get the authenticated rider's full profile.</summary>
     [HttpGet("me")]
@@ -73,5 +74,17 @@ public class RiderAuthController(IRiderAuthService authService) : ControllerBase
         if (!Guid.TryParse(riderIdStr, out var riderId))
             return Unauthorized();
         return Ok(await authService.UpdateProfileAsync(riderId, req, ct));
+    }
+
+    /// <summary>Changes the authenticated rider's own password.</summary>
+    [HttpPost("me/change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest req, CancellationToken ct)
+    {
+        var riderIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(riderIdStr, out var riderId))
+            return Unauthorized();
+        await authService.ChangePasswordAsync(riderId, req, ct);
+        return NoContent();
     }
 }

@@ -15,11 +15,14 @@ public class SmtpEmailService(
     private readonly SmtpOptions _opts = options.Value;
 
     public string ProviderName => "smtp";
+    public string DefaultFromAddress => _opts.FromAddress;
+    public string DefaultFromName => _opts.FromName;
 
-    public async Task SendAsync(string toEmail, string subject, string body, CancellationToken ct = default)
+    public async Task SendAsync(
+        string toEmail, string subject, string body, EmailSendOptions? options = null, CancellationToken ct = default)
     {
         var message = new MimeMessage();
-        message.From.Add(new MailboxAddress(_opts.FromName, _opts.FromAddress));
+        message.From.Add(new MailboxAddress(options?.FromName ?? _opts.FromName, options?.FromAddress ?? _opts.FromAddress));
         message.To.Add(MailboxAddress.Parse(toEmail));
         if (!string.IsNullOrWhiteSpace(_opts.Bcc))
         {

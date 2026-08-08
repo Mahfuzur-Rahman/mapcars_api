@@ -26,6 +26,12 @@ public class AppDbContext : DbContext, IUnitOfWork
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
     public DbSet<Poster> Posters => Set<Poster>();
 
+    // Central error log — every surface appends here (database/021_error_logs.sql).
+    public DbSet<ErrorLog> ErrorLogs => Set<ErrorLog>();
+
+    // Every email send, from any code path (database/022_email_log.sql).
+    public DbSet<EmailLog> EmailLogs => Set<EmailLog>();
+
     // Pricing — fare chart version history (database-first via database/008_*.sql).
     // Redis is the hot cache; this table is the durable source of truth.
     public DbSet<FareChartRecord> FareCharts => Set<FareChartRecord>();

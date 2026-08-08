@@ -10,10 +10,15 @@ namespace Mapcars.Infrastructure.Services;
 public class ConsoleEmailService(ILogger<ConsoleEmailService> logger) : IEmailService
 {
     public string ProviderName => "console";
+    public string DefaultFromAddress => "no-reply@mapcars.uk";
+    public string DefaultFromName => "MAP CARS";
 
-    public Task SendAsync(string toEmail, string subject, string body, CancellationToken ct = default)
+    public Task SendAsync(
+        string toEmail, string subject, string body, EmailSendOptions? options = null, CancellationToken ct = default)
     {
-        logger.LogWarning("[DEV EMAIL] To: {Email} | Subject: {Subject} | {Body}", toEmail, subject, body);
+        var fromAddress = options?.FromAddress ?? DefaultFromAddress;
+        logger.LogWarning(
+            "[DEV EMAIL] From: {From} | To: {Email} | Subject: {Subject} | {Body}", fromAddress, toEmail, subject, body);
         return Task.CompletedTask;
     }
 }

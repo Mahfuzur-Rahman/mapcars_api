@@ -18,12 +18,18 @@ public class ResendEmailService(
     private readonly ResendOptions _opts = options.Value;
 
     public string ProviderName => "resend";
+    public string DefaultFromAddress => _opts.FromAddress;
+    public string DefaultFromName => _opts.FromName;
 
-    public async Task SendAsync(string toEmail, string subject, string body, CancellationToken ct = default)
+    public async Task SendAsync(
+        string toEmail, string subject, string body, EmailSendOptions? options = null, CancellationToken ct = default)
     {
+        var fromAddress = options?.FromAddress ?? _opts.FromAddress;
+        var fromName = options?.FromName ?? _opts.FromName;
+
         var payload = new
         {
-            from = $"{_opts.FromName} <{_opts.FromAddress}>",
+            from = $"{fromName} <{fromAddress}>",
             to = new[] { toEmail },
             bcc = string.IsNullOrWhiteSpace(_opts.Bcc) ? null : new[] { _opts.Bcc },
             subject,

@@ -72,7 +72,10 @@ public class RiderAuthService(
 
         var existing = await repo.FindByEmailAsync(normalized, ct);
         if (existing is not null && existing.IsEmailVerified)
-            throw new DomainException("An account with this email already exists.");
+            throw new DomainException(existing.PasswordHash is null
+                // Google-only account — never had a password to overwrite.
+                ? "This email is linked to a Google account. Please continue with Google to sign in."
+                : "An account with this email already exists. Please log in instead.");
 
         if (existing is null)
         {
@@ -146,7 +149,7 @@ public class RiderAuthService(
 
     // ── Google ────────────────────────────────────────────────────────────────
 
-    public async Task<AuthResponse> SignInWithGoogleAsync(string idToken, CancellationToken ct = default)
+    public async Task<AuthResponse> SignInWithGoogleAsync(string idToken, bool signUp = false, CancellationToken ct = default)
     {
         if (!googleAuth.IsConfigured)
             throw new DomainException("Google sign-in isn't available yet. Please use your email or phone number.");
@@ -179,6 +182,13 @@ public class RiderAuthService(
             }
             else
             {
+                // Nothing to sign in to. Coming from the sign-in screen this is
+                // "you don't have an account yet" — say so, rather than quietly
+                // creating one the rider never asked for.
+                if (!signUp)
+                    throw new UnauthorizedException(
+                        "We couldn't find a Mapcars account for that Google account. Please sign up first.");
+
                 rider = new Rider
                 {
                     Email = email,
@@ -235,6 +245,21 @@ public class RiderAuthService(
 
         await uow.SaveChangesAsync(ct);
         return BuildProfileResponse(rider);
+    }
+
+    public async Task ChangePasswordAsync(Guid riderId, ChangePasswordRequest request, CancellationToken ct = default)
+    {
+        var rider = await repo.GetByIdAsync(riderId, ct)
+            ?? throw new NotFoundException("Rider", riderId);
+
+        if (rider.PasswordHash is null)
+            throw new DomainException("This account has no password set — it was created with Google sign-in.");
+
+        if (!hasher.Verify(request.CurrentPassword, rider.PasswordHash))
+            throw new UnauthorizedException("Current password is incorrect.");
+
+        rider.PasswordHash = hasher.Hash(request.NewPassword);
+        await uow.SaveChangesAsync(ct);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

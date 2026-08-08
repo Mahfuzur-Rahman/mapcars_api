@@ -5,6 +5,7 @@ using Mapcars.Application.Documents.Mapping;
 using Mapcars.Application.DriverReview.Dtos;
 using Mapcars.Application.DriverReview.Interfaces;
 using Mapcars.Application.Drivers.Interfaces;
+using Mapcars.Application.Geo.Interfaces;
 using Mapcars.Application.Vehicles.Interfaces;
 using Mapcars.Application.Vehicles.Mapping;
 using Mapcars.Domain.Enums;
@@ -24,6 +25,7 @@ public class DriverReviewService : IDriverReviewService
     private readonly IDocumentRepository _documents;
     private readonly IVehicleRepository _vehicles;
     private readonly IFileStorageService _storage;
+    private readonly IDriverLocationStore _locations;
     private readonly IUnitOfWork _uow;
 
     public DriverReviewService(
@@ -31,12 +33,14 @@ public class DriverReviewService : IDriverReviewService
         IDocumentRepository documents,
         IVehicleRepository vehicles,
         IFileStorageService storage,
+        IDriverLocationStore locations,
         IUnitOfWork uow)
     {
         _drivers = drivers;
         _documents = documents;
         _vehicles = vehicles;
         _storage = storage;
+        _locations = locations;
         _uow = uow;
     }
 
@@ -125,8 +129,18 @@ public class DriverReviewService : IDriverReviewService
             ?? throw new NotFoundException("Driver", driverId);
 
         driver.Status = status;
+
+        // Anything other than Approved takes the driver off the road right now:
+        // clear the online flag and drop them from the live GEO pool, so a
+        // suspend/reject can't leave a working driver mid-shift.
+        if (status != DriverStatus.Approved)
+            driver.IsOnline = false;
+
         _drivers.Update(driver);
         await _uow.SaveChangesAsync(ct);
+
+        if (status != DriverStatus.Approved)
+            await _locations.RemoveAsync(driverId, ct);
 
         return await GetDriverAsync(driverId, ct);
     }

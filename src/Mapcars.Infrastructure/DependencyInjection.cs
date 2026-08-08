@@ -6,6 +6,8 @@ using Mapcars.Application.Common.Interfaces;
 using Mapcars.Application.Notifications.Interfaces;
 using Mapcars.Application.Documents.Interfaces;
 using Mapcars.Application.Drivers.Interfaces;
+using Mapcars.Application.ErrorLogs.Interfaces;
+using Mapcars.Application.Emails.Interfaces;
 using Mapcars.Application.Geo.Interfaces;
 using Mapcars.Application.Payments.Interfaces;
 using Mapcars.Application.Posters.Interfaces;
@@ -67,6 +69,8 @@ public static class DependencyInjection
         services.AddScoped<IPayoutRepository, PayoutRepository>();
         services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
         services.AddScoped<IPosterRepository, PosterRepository>();
+        services.AddScoped<IErrorLogRepository, ErrorLogRepository>();
+        services.AddScoped<IEmailLogRepository, EmailLogRepository>();
 
         // Pricing — Redis-cached fare chart, durably backed by Postgres.
         // The multiplexer connects lazily with AbortOnConnectFail=false so the API
@@ -157,20 +161,35 @@ public static class DependencyInjection
         StripeConfiguration.ApiKey = configuration[$"{StripeOptions.Section}:SecretKey"];
         services.AddScoped<IStripeConnectService, StripeConnectService>();
 
-        // Email — driven by Email:Provider ("Smtp" | "Resend"); falls back to console stub
+        // Email — driven by Email:Provider ("Smtp" | "Resend"); falls back to console stub.
+        // Whichever provider is chosen is wrapped in LoggingEmailService, which is what
+        // actually gets registered as IEmailService — every send, from any call site,
+        // ends up recorded in email_log (see LoggingEmailService, database/022_email_log.sql).
         switch (configuration["Email:Provider"]?.Trim().ToLowerInvariant())
         {
             case "smtp":
                 services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.Section));
-                services.AddScoped<IEmailService, SmtpEmailService>();
+                services.AddScoped<SmtpEmailService>();
+                services.AddScoped<IEmailService>(sp => new LoggingEmailService(
+                    sp.GetRequiredService<SmtpEmailService>(),
+                    sp.GetRequiredService<IEmailLogRepository>(),
+                    sp.GetRequiredService<ILogger<LoggingEmailService>>()));
                 break;
             case "resend":
                 services.Configure<ResendOptions>(configuration.GetSection(ResendOptions.Section));
-                services.AddScoped<IEmailService, ResendEmailService>();
+                services.AddScoped<ResendEmailService>();
+                services.AddScoped<IEmailService>(sp => new LoggingEmailService(
+                    sp.GetRequiredService<ResendEmailService>(),
+                    sp.GetRequiredService<IEmailLogRepository>(),
+                    sp.GetRequiredService<ILogger<LoggingEmailService>>()));
                 services.AddScoped<IInboundEmailService, ResendInboundEmailService>();
                 break;
             default:
-                services.AddScoped<IEmailService, ConsoleEmailService>();
+                services.AddScoped<ConsoleEmailService>();
+                services.AddScoped<IEmailService>(sp => new LoggingEmailService(
+                    sp.GetRequiredService<ConsoleEmailService>(),
+                    sp.GetRequiredService<IEmailLogRepository>(),
+                    sp.GetRequiredService<ILogger<LoggingEmailService>>()));
                 break;
         }
 

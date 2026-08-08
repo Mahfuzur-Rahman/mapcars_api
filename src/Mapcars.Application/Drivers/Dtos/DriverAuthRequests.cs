@@ -10,7 +10,13 @@ public record DriverEmailSignUpRequest(string Email, string Password, string Ful
 public record DriverResendEmailRequest(string Email);
 public record DriverVerifyEmailRequest(string Email, string Code);
 public record DriverEmailLoginRequest(string Email, string Password);
-public record DriverGoogleAuthRequest(string IdToken);
+/// <summary>
+/// Google sign-in. <paramref name="SignUp"/> says which screen the driver came
+/// from: <c>true</c> from "Sign up with Google" (an account may be created),
+/// <c>false</c> (the default) from the sign-in screen — where an unknown Google
+/// account is told to sign up rather than silently becoming a new account.
+/// </summary>
+public record DriverGoogleAuthRequest(string IdToken, bool SignUp = false);
 public record UpdateDriverProfileRequest(
     string FirstName,
     string? LastName,

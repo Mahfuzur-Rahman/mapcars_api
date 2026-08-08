@@ -32,12 +32,27 @@ public class UnifiedAuthService(
             return BuildAdminResponse(admin, await adminRepo.GetMenusForAdminAsync(admin.Id, admin.RoleId, ct));
 
         var rider = await riderRepo.FindByEmailAsync(email, ct);
-        if (rider is not null && rider.PasswordHash is not null && hasher.Verify(password, rider.PasswordHash))
-            return BuildUserResponse(rider, "rider");
+        var riderMatches = rider is not null && rider.PasswordHash is not null && hasher.Verify(password, rider.PasswordHash);
 
         var driver = await driverRepo.FindByEmailAsync(email, ct);
-        if (driver is not null && driver.PasswordHash is not null && hasher.Verify(password, driver.PasswordHash))
-            return BuildUserResponse(driver, "driver");
+        var driverMatches = driver is not null && driver.PasswordHash is not null && hasher.Verify(password, driver.PasswordHash);
+
+        // The same person can hold a rider account and a driver account under
+        // the same email. If both match, don't silently pick one (that used
+        // to always mean "rider", since it was checked first) — ask which
+        // account they mean, unless they already told us via LoginAs.
+        if (riderMatches && driverMatches)
+        {
+            return request.LoginAs switch
+            {
+                "rider" => BuildUserResponse(rider!, "rider"),
+                "driver" => BuildUserResponse(driver!, "driver"),
+                _ => new UnifiedLoginResponse { RequiresChoice = true, AvailableUserTypes = ["rider", "driver"] },
+            };
+        }
+
+        if (riderMatches) return BuildUserResponse(rider!, "rider");
+        if (driverMatches) return BuildUserResponse(driver!, "driver");
 
         // Deliberately generic — never reveal which table(s) the email exists
         // in, and never reveal *whose* password was wrong if it happens to

@@ -1,6 +1,7 @@
 using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Application.Dispatch.Interfaces;
+using Mapcars.Application.Drivers;
 using Mapcars.Application.Drivers.Interfaces;
 using Mapcars.Application.Notifications.Dtos;
 using Mapcars.Application.Notifications.Interfaces;
@@ -23,9 +24,11 @@ namespace Mapcars.Application.Trips.Services;
 /// Business logic for trips. Listing is read-only; booking (<see cref="CreateAsync"/>)
 /// prices the chosen tier authoritatively from the fare chart and snapshots the
 /// breakdown onto the trip so it's independent of later chart edits. Lifecycle
-/// transitions (accept/arrive/start/complete/cancel) are plain state changes —
-/// there is no real-time dispatch/matching yet (a driver discovers open trips
-/// via <see cref="ListAvailableAsync"/>, a simple unfiltered list).
+/// transitions (accept/arrive/start/complete/cancel) are plain state changes.
+/// Every driver-facing entry point — discovering open trips via
+/// <see cref="ListAvailableAsync"/> just as much as <see cref="AcceptAsync"/> —
+/// goes through <c>EnsureCanReceiveRequestsAsync</c>, so only a driver an admin
+/// has approved (and who is online) ever sees or takes work.
 /// </summary>
 public class TripService : ITripService
 {
@@ -73,15 +76,19 @@ public class TripService : ITripService
         return trips.Select(t => t.ToResponse()).ToList();
     }
 
-    public async Task<IReadOnlyList<TripResponse>> ListAvailableAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<TripResponse>> ListAvailableAsync(Guid driverId, CancellationToken ct = default)
     {
+        await EnsureCanReceiveRequestsAsync(driverId, ct);
+
         var trips = await _trips.ListAvailableAsync(ct);
         return trips.Select(t => t.ToResponse()).ToList();
     }
 
     public async Task<IReadOnlyList<TripResponse>> ListAvailableNearbyAsync(
-        double lat, double lng, double radiusMeters, CancellationToken ct = default)
+        Guid driverId, double lat, double lng, double radiusMeters, CancellationToken ct = default)
     {
+        await EnsureCanReceiveRequestsAsync(driverId, ct);
+
         var trips = await _trips.ListAvailableAsync(ct);
         return trips
             .Select(t => (trip: t, meters: FareCalculator.HaversineMeters(lat, lng, t.PickupLat, t.PickupLng)))
@@ -89,6 +96,22 @@ public class TripService : ITripService
             .OrderBy(x => x.meters)
             .Select(x => x.trip.ToResponse())
             .ToList();
+    }
+
+    /// <summary>
+    /// The requests board is only visible to a driver an admin has approved and
+    /// who is currently online. This mirrors the accept guard, so an unapproved
+    /// driver can't even see the work, let alone take it.
+    /// </summary>
+    private async Task EnsureCanReceiveRequestsAsync(Guid driverId, CancellationToken ct)
+    {
+        var driver = await _drivers.GetByIdAsync(driverId, ct) ?? throw new NotFoundException("Driver", driverId);
+
+        if (!DriverApproval.CanWork(driver))
+            throw new DomainException(DriverApproval.BlockedMessage(driver.Status));
+
+        if (!driver.IsOnline)
+            throw new DomainException("Go online to see trip requests.");
     }
 
     public async Task<TripResponse> CreateAsync(Guid riderId, CreateTripRequest req, CancellationToken ct = default)
@@ -149,9 +172,7 @@ public class TripService : ITripService
 
     public async Task<TripResponse> AcceptAsync(Guid driverId, Guid tripId, CancellationToken ct = default)
     {
-        var driver = await _drivers.GetByIdAsync(driverId, ct) ?? throw new NotFoundException("Driver", driverId);
-        if (driver.Status != DriverStatus.Approved || !driver.IsOnline)
-            throw new DomainException("You must be an approved, online driver to accept trips.");
+        await EnsureCanReceiveRequestsAsync(driverId, ct);
 
         // Broadcast model — first-come wins. The atomic Requested→DriverAssigned is
         // the single guard against two drivers grabbing the same trip; false means

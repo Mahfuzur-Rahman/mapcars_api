@@ -8,9 +8,10 @@ namespace Mapcars.Api.Controllers;
 
 /// <summary>
 /// Driver-side trip lifecycle: discover open requests and accept/arrive/start/
-/// complete one. These are plain authenticated state transitions — there is no
-/// real-time dispatch/matching yet, so <see cref="Available"/> is a bare
-/// unfiltered list of open requests, not a geo-matched feed.
+/// complete one. Every endpoint here requires a driver an admin has approved
+/// and who is currently online — an unapproved driver can't see the board at
+/// all. <see cref="Available"/> is a bare unfiltered list of open requests;
+/// <see cref="AvailableNearby"/> is the geo-filtered board the app polls.
 /// </summary>
 [ApiController]
 [Route("api/v1/trips")]
@@ -24,18 +25,26 @@ public class DriverTripsController : ControllerBase
     /// <summary>All unassigned, still-requested trips (the full broadcast board).</summary>
     [HttpGet("available")]
     [ProducesResponseType(typeof(IReadOnlyList<TripResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Available(CancellationToken ct)
-        => Ok(await _trips.ListAvailableAsync(ct));
+    {
+        if (!TryGetDriverId(out var driverId)) return Unauthorized();
+        return Ok(await _trips.ListAvailableAsync(driverId, ct));
+    }
 
     /// <summary>Open requests near the driver (their board), nearest first.</summary>
     [HttpGet("available/nearby")]
     [ProducesResponseType(typeof(IReadOnlyList<TripResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AvailableNearby(
         [FromQuery] double lat,
         [FromQuery] double lng,
         [FromQuery] double? radiusMeters,
         CancellationToken ct)
-        => Ok(await _trips.ListAvailableNearbyAsync(lat, lng, radiusMeters ?? 10_000, ct));
+    {
+        if (!TryGetDriverId(out var driverId)) return Unauthorized();
+        return Ok(await _trips.ListAvailableNearbyAsync(driverId, lat, lng, radiusMeters ?? 10_000, ct));
+    }
 
     /// <summary>The authenticated driver's own trips.</summary>
     [HttpGet("mine")]

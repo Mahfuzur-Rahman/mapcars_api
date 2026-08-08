@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Mapcars.Application.Common.Dtos;
 using Mapcars.Application.Drivers.Dtos;
 using Mapcars.Application.Drivers.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -44,7 +45,7 @@ public class DriverAuthController(IDriverAuthService authService) : ControllerBa
     [HttpPost("google")]
     [EnableRateLimiting("auth")]
     public async Task<IActionResult> Google([FromBody] DriverGoogleAuthRequest req, CancellationToken ct)
-        => Ok(await authService.SignInWithGoogleAsync(req.IdToken, ct));
+        => Ok(await authService.SignInWithGoogleAsync(req.IdToken, req.SignUp, ct));
 
     /// <summary>Fetch the authenticated driver's full profile.</summary>
     [HttpGet("me")]
@@ -62,6 +63,16 @@ public class DriverAuthController(IDriverAuthService authService) : ControllerBa
     {
         if (!TryGetDriverId(out var driverId)) return Unauthorized();
         return Ok(await authService.UpdateProfileAsync(driverId, req, ct));
+    }
+
+    /// <summary>Changes the authenticated driver's own password.</summary>
+    [HttpPost("me/change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest req, CancellationToken ct)
+    {
+        if (!TryGetDriverId(out var driverId)) return Unauthorized();
+        await authService.ChangePasswordAsync(driverId, req, ct);
+        return NoContent();
     }
 
     /// <summary>Toggle the authenticated driver's online/offline availability.</summary>

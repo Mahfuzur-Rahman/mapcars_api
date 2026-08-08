@@ -40,7 +40,7 @@ public class OtpService(
                 emailAddr,
                 "Your MAP CARS verification code",
                 $"Your verification code is <strong>{code}</strong>. It expires in {EmailExpiryMinutes} minutes.",
-                ct);
+                ct: ct);
         }
         catch (Exception ex)
         {

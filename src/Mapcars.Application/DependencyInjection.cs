@@ -10,6 +10,10 @@ using Mapcars.Application.Documents.Interfaces;
 using Mapcars.Application.Documents.Services;
 using Mapcars.Application.DriverReview.Interfaces;
 using Mapcars.Application.DriverReview.Services;
+using Mapcars.Application.ErrorLogs.Interfaces;
+using Mapcars.Application.ErrorLogs.Services;
+using Mapcars.Application.Emails.Interfaces;
+using Mapcars.Application.Emails.Services;
 using Mapcars.Application.Drivers.Interfaces;
 using Mapcars.Application.Drivers.Services;
 using Mapcars.Application.Geo.Interfaces;
@@ -73,6 +77,8 @@ public static class DependencyInjection
         services.AddScoped<IPayoutService, PayoutService>();
         services.AddScoped<IPushService, PushService>();
         services.AddScoped<IPosterService, PosterService>();
+        services.AddScoped<IErrorLogService, ErrorLogService>();
+        services.AddScoped<IEmailAdminService, EmailAdminService>();
 
         return services;
     }

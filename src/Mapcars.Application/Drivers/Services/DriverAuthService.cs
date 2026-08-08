@@ -5,6 +5,7 @@ using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Application.Drivers.Dtos;
 using Mapcars.Application.Drivers.Interfaces;
+using Mapcars.Application.Geo.Interfaces;
 using Mapcars.Domain.Entities;
 using Mapcars.Domain.Enums;
 using Mapcars.Domain.Exceptions;
@@ -19,6 +20,7 @@ public class DriverAuthService(
     IJwtService jwt,
     IFileStorageService storage,
     IAppEnvironment env,
+    IDriverLocationStore locations,
     IUnitOfWork uow) : IDriverAuthService
 {
     private const string UserType = "driver";
@@ -50,20 +52,20 @@ public class DriverAuthService(
         var driver = await repo.FindByPhoneAsync(normalized, ct);
         if (driver is null)
         {
-            var isDemo = IsDemoPhoneOrEmail(normalized);
+            // Every new driver starts unapproved — signing up never grants the
+            // right to work. Only an admin's explicit decision (AdminDriverReview
+            // → SetDriverStatus) moves a driver to Approved.
             driver = new Driver
             {
                 PhoneNumber = normalized,
                 IsPhoneVerified = true,
-                Status = (isDemo || env.IsDevelopment) ? DriverStatus.Approved : DriverStatus.PendingApproval,
+                Status = DriverStatus.PendingApproval,
             };
             await repo.AddAsync(driver, ct);
         }
         else
         {
             driver.IsPhoneVerified = true;
-            if (IsDemoPhoneOrEmail(driver.Email) || IsDemoPhoneOrEmail(driver.PhoneNumber) || env.IsDevelopment)
-                driver.Status = DriverStatus.Approved;
         }
 
         await uow.SaveChangesAsync(ct);
@@ -78,17 +80,20 @@ public class DriverAuthService(
 
         var existing = await repo.FindByEmailAsync(normalized, ct);
         if (existing is not null && existing.IsEmailVerified)
-            throw new DomainException("An account with this email already exists.");
+            throw new DomainException(existing.PasswordHash is null
+                // Google-only account — never had a password to overwrite.
+                ? "This email is linked to a Google account. Please continue with Google to sign in."
+                : "An account with this email already exists. Please log in instead.");
 
-        var isDemo = IsDemoPhoneOrEmail(normalized);
         if (existing is null)
         {
+            // Unapproved until an admin says otherwise — see VerifyPhoneOtpAsync.
             existing = new Driver
             {
                 Email = normalized,
                 FullName = fullName.Trim(),
                 PasswordHash = hasher.Hash(password),
-                Status = (isDemo || env.IsDevelopment) ? DriverStatus.Approved : DriverStatus.PendingApproval,
+                Status = DriverStatus.PendingApproval,
             };
             await repo.AddAsync(existing, ct);
         }
@@ -96,8 +101,6 @@ public class DriverAuthService(
         {
             existing.PasswordHash = hasher.Hash(password);
             existing.FullName = fullName.Trim();
-            if (isDemo || env.IsDevelopment)
-                existing.Status = DriverStatus.Approved;
         }
 
         await uow.SaveChangesAsync(ct);
@@ -151,7 +154,7 @@ public class DriverAuthService(
 
     // ── Google ────────────────────────────────────────────────────────────────
 
-    public async Task<AuthResponse> SignInWithGoogleAsync(string idToken, CancellationToken ct = default)
+    public async Task<AuthResponse> SignInWithGoogleAsync(string idToken, bool signUp = false, CancellationToken ct = default)
     {
         if (!googleAuth.IsConfigured)
             throw new DomainException("Google sign-in isn't available yet. Please use your email or phone number.");
@@ -182,6 +185,12 @@ public class DriverAuthService(
             }
             else
             {
+                // Nothing to sign in to — see the rider service: an unknown
+                // Google account on the sign-in screen is told to sign up.
+                if (!signUp)
+                    throw new UnauthorizedException(
+                        "We couldn't find a Mapcars driver account for that Google account. Please sign up first.");
+
                 driver = new Driver
                 {
                     Email = email,
@@ -257,6 +266,21 @@ public class DriverAuthService(
         return BuildProfileResponse(driver);
     }
 
+    public async Task ChangePasswordAsync(Guid driverId, ChangePasswordRequest request, CancellationToken ct = default)
+    {
+        var driver = await repo.GetByIdAsync(driverId, ct)
+            ?? throw new NotFoundException("Driver", driverId);
+
+        if (driver.PasswordHash is null)
+            throw new DomainException("This account has no password set — it was created with Google sign-in.");
+
+        if (!hasher.Verify(request.CurrentPassword, driver.PasswordHash))
+            throw new UnauthorizedException("Current password is incorrect.");
+
+        driver.PasswordHash = hasher.Hash(request.NewPassword);
+        await uow.SaveChangesAsync(ct);
+    }
+
     public async Task<DriverProfileResponse> UploadProfilePictureAsync(
         Guid driverId, Stream content, string fileName, string contentType, long fileSize, CancellationToken ct = default)
     {
@@ -289,33 +313,25 @@ public class DriverAuthService(
         var driver = await repo.GetByIdAsync(driverId, ct)
             ?? throw new NotFoundException("Driver", driverId);
 
-        if (isOnline && driver.Status != DriverStatus.Approved)
-        {
-            if (IsDemoPhoneOrEmail(driver.Email) || IsDemoPhoneOrEmail(driver.PhoneNumber) || env.IsDevelopment)
-            {
-                driver.Status = DriverStatus.Approved;
-            }
-            else
-            {
-                throw new DomainException("Your account has not been approved yet. An admin must verify your documents before you can go online.");
-            }
-        }
+        // Going online is gated on admin approval — no environment, demo account
+        // or client flag can bypass it. Going *offline* is always allowed (a
+        // suspended driver must still be able to take themselves off the road).
+        if (isOnline && !DriverApproval.CanWork(driver))
+            throw new DomainException(DriverApproval.BlockedMessage(driver.Status));
 
         driver.IsOnline = isOnline;
         if (isOnline) driver.LastOnlineAtUtc = DateTime.UtcNow;
 
         await uow.SaveChangesAsync(ct);
+
+        // Leaving the road also means leaving the live GEO pool, so no rider or
+        // dispatch broadcast can still see this driver as available.
+        if (!isOnline) await locations.RemoveAsync(driverId, ct);
+
         return BuildProfileResponse(driver);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private static bool IsDemoPhoneOrEmail(string? val)
-    {
-        if (string.IsNullOrWhiteSpace(val)) return false;
-        var s = val.ToLowerInvariant();
-        return s.Contains("demo") || s.Contains("test") || s.Contains("7700900000") || s.Contains("0000000000") || s.EndsWith("@mapcars.co.uk");
-    }
 
     private static DriverProfileResponse BuildProfileResponse(Driver driver) => new()
     {

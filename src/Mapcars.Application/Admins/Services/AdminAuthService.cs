@@ -1,6 +1,7 @@
 using Mapcars.Application.Admins.Dtos;
 using Mapcars.Application.Admins.Interfaces;
 using Mapcars.Application.Admins.Mapping;
+using Mapcars.Application.Common.Dtos;
 using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Domain.Entities;
@@ -68,7 +69,7 @@ public class AdminAuthService(
                  password provided to you.<br><br>
                  For security, please change your password after your first sign-in.
                  """,
-                ct);
+                ct: ct);
         }
         catch (Exception ex)
         {
@@ -120,6 +121,18 @@ public class AdminAuthService(
             Admin = admin.ToResponse(),
             Menus = menus.ToMenuTree(),
         };
+    }
+
+    public async Task ChangePasswordAsync(Guid adminId, ChangePasswordRequest request, CancellationToken ct = default)
+    {
+        var admin = await adminRepo.GetByIdWithRoleAsync(adminId, ct)
+            ?? throw new NotFoundException("Admin", adminId);
+
+        if (!hasher.Verify(request.CurrentPassword, admin.PasswordHash))
+            throw new UnauthorizedException("Current password is incorrect.");
+
+        admin.PasswordHash = hasher.Hash(request.NewPassword);
+        await uow.SaveChangesAsync(ct);
     }
 
     private Admin NewAdmin(CreateAdminRequest req, Guid? createdBy) => new()

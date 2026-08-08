@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Mapcars.Application.Admins.Dtos;
 using Mapcars.Application.Admins.Interfaces;
+using Mapcars.Application.Common.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -39,6 +40,16 @@ public class AdminAuthController(IAdminAuthService authService) : ControllerBase
         var adminId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var result = await authService.GetCurrentAdminAsync(adminId, ct);
         return Ok(result);
+    }
+
+    /// <summary>Changes the authenticated admin's own password.</summary>
+    [Authorize]
+    [HttpPost("me/change-password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken ct)
+    {
+        var adminId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        await authService.ChangePasswordAsync(adminId, request, ct);
+        return NoContent();
     }
 
     /// <summary>SuperAdmin only — creates a new admin account.</summary>

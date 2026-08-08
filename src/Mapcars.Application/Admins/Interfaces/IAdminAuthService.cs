@@ -1,4 +1,5 @@
 using Mapcars.Application.Admins.Dtos;
+using Mapcars.Application.Common.Dtos;
 
 namespace Mapcars.Application.Admins.Interfaces;
 
@@ -8,4 +9,5 @@ public interface IAdminAuthService
     Task<AdminResponse> RegisterAsync(CreateAdminRequest request, Guid createdBy, CancellationToken ct = default);
     Task<LoginResponse> SetupSuperAdminAsync(CreateAdminRequest request, CancellationToken ct = default);
     Task<LoginResponse> GetCurrentAdminAsync(Guid adminId, CancellationToken ct = default);
+    Task ChangePasswordAsync(Guid adminId, ChangePasswordRequest request, CancellationToken ct = default);
 }

@@ -1,8 +1,12 @@
+using Mapcars.Application.Common.Exceptions;
+using Mapcars.Application.Drivers;
+using Mapcars.Application.Drivers.Interfaces;
 using Mapcars.Application.Geo.Dtos;
 using Mapcars.Application.Geo.Interfaces;
 using Mapcars.Application.Realtime.Interfaces;
 using Mapcars.Application.Trips.Interfaces;
 using Mapcars.Domain.Enums;
+using Mapcars.Domain.Exceptions;
 
 namespace Mapcars.Application.Geo.Services;
 
@@ -22,18 +26,42 @@ public class DriverLocationService : IDriverLocationService
         [TripStatus.DriverAssigned, TripStatus.DriverArrived, TripStatus.InProgress];
 
     private readonly IDriverLocationStore _store;
+    private readonly IDriverRepository _drivers;
     private readonly ITripRepository _trips;
     private readonly ITripNotifier _notifier;
 
-    public DriverLocationService(IDriverLocationStore store, ITripRepository trips, ITripNotifier notifier)
+    public DriverLocationService(
+        IDriverLocationStore store,
+        IDriverRepository drivers,
+        ITripRepository trips,
+        ITripNotifier notifier)
     {
         _store = store;
+        _drivers = drivers;
         _trips = trips;
         _notifier = notifier;
     }
 
     public async Task UpdateAsync(Guid driverId, UpdateDriverLocationRequest req, CancellationToken ct = default)
     {
+        // The GEO pool is the "available for work" pool: only an admin-approved,
+        // online driver belongs in it. Anyone else is evicted rather than added,
+        // so a client that keeps pushing can't put itself in front of riders.
+        var driver = await _drivers.GetByIdAsync(driverId, ct)
+            ?? throw new NotFoundException("Driver", driverId);
+
+        if (!DriverApproval.CanWork(driver))
+        {
+            await _store.RemoveAsync(driverId, ct);
+            throw new DomainException(DriverApproval.BlockedMessage(driver.Status));
+        }
+
+        if (!driver.IsOnline)
+        {
+            await _store.RemoveAsync(driverId, ct);
+            return;
+        }
+
         await _store.UpsertAsync(driverId, req.Lat, req.Lng, req.Heading, ct);
 
         if (req.TripId is not { } tripId) return;

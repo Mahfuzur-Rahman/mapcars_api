@@ -55,6 +55,10 @@ so re-running them is safe.
 | `015_driver_verification_documents.sql` | `drivers` (+ `passport_number`); new `DocumentType`s (Passport, DrivingLicence, VehicleBadge, BankStatement) live in app code only |
 | `016_fare_settings_menu.sql` | `menus`, `role_menus` (+ "Fare Settings" `/admin/fare` sidebar entry, granted to SuperAdmin) |
 | `017_trip_tip.sql` | `trips` (+ `TipAmount` — rider tip for the broadcast dispatch model, 100% to driver) |
+| `018_trip_payment.sql` | `trips` (+ `PaymentMethod`/`PaymentStatus`/`PaidAtUtc` — cash settled at completion; Stripe card capture is the next step) |
+| `019_device_tokens.sql` | `device_tokens` (FCM registration tokens per rider/driver device, for push) |
+| `020_posters.sql` | `posters`, `menus`, `role_menus` (+ "Posters" `/admin/posters` sidebar entry, granted to SuperAdmin + Admin) |
+| `021_error_logs.sql` | `error_logs` (central error log — API, web and both apps write here), `menus`, `role_menus` (+ "Error Logger" `/admin/error-logs` entry, granted to SuperAdmin + Admin) |
 
 ## Conventions
 

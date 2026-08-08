@@ -9,12 +9,18 @@ public interface ITripService
     Task<IReadOnlyList<TripResponse>> ListForRiderAsync(Guid riderId, CancellationToken ct = default);
     Task<IReadOnlyList<TripResponse>> ListForDriverAsync(Guid driverId, CancellationToken ct = default);
 
-    /// <summary>All unassigned, still-requested trips (the broadcast board — every open request).</summary>
-    Task<IReadOnlyList<TripResponse>> ListAvailableAsync(CancellationToken ct = default);
+    /// <summary>
+    /// All unassigned, still-requested trips (the broadcast board — every open
+    /// request). Only visible to an admin-approved driver who is online.
+    /// </summary>
+    Task<IReadOnlyList<TripResponse>> ListAvailableAsync(Guid driverId, CancellationToken ct = default);
 
-    /// <summary>Open requests within <paramref name="radiusMeters"/> of a driver's point, nearest first.</summary>
+    /// <summary>
+    /// Open requests within <paramref name="radiusMeters"/> of a driver's point,
+    /// nearest first. Same approval gate as <see cref="ListAvailableAsync"/>.
+    /// </summary>
     Task<IReadOnlyList<TripResponse>> ListAvailableNearbyAsync(
-        double lat, double lng, double radiusMeters, CancellationToken ct = default);
+        Guid driverId, double lat, double lng, double radiusMeters, CancellationToken ct = default);
 
     /// <summary>
     /// Books a trip for a rider. Prices the chosen tier authoritatively from the
