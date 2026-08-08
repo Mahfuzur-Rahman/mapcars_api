@@ -59,6 +59,7 @@ so re-running them is safe.
 | `019_device_tokens.sql` | `device_tokens` (FCM registration tokens per rider/driver device, for push) |
 | `020_posters.sql` | `posters`, `menus`, `role_menus` (+ "Posters" `/admin/posters` sidebar entry, granted to SuperAdmin + Admin) |
 | `021_error_logs.sql` | `error_logs` (central error log — API, web and both apps write here), `menus`, `role_menus` (+ "Error Logger" `/admin/error-logs` entry, granted to SuperAdmin + Admin) |
+| `022_email_log.sql` | `email_log` (every email sent, via `LoggingEmailService`), `menus`, `role_menus` (+ "Email" `/admin/emails` entry, granted to SuperAdmin + Admin) |
 
 ## Conventions
 
