@@ -15,6 +15,7 @@ public class TripConfiguration : IEntityTypeConfiguration<Trip>
         builder.Property(t => t.DropoffAddress).IsRequired().HasMaxLength(500);
 
         builder.Property(t => t.Status).HasConversion<string>().HasMaxLength(30);
+        builder.Property(t => t.Pin).HasMaxLength(4);
         builder.Property(t => t.FareAmount).HasPrecision(10, 2);
         builder.Property(t => t.TipAmount).HasPrecision(10, 2);
 

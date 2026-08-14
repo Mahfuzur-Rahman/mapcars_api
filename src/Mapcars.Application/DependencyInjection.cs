@@ -30,6 +30,8 @@ using Mapcars.Application.Realtime;
 using Mapcars.Application.Realtime.Interfaces;
 using Mapcars.Application.Ratings.Interfaces;
 using Mapcars.Application.Ratings.Services;
+using Mapcars.Application.Messages.Interfaces;
+using Mapcars.Application.Messages.Services;
 using Mapcars.Application.Riders.Interfaces;
 using Mapcars.Application.Riders.Services;
 using Mapcars.Application.SavedPlaces.Interfaces;
@@ -56,6 +58,7 @@ public static class DependencyInjection
         // Application services (one line per feature service).
         services.AddScoped<IRiderService, RiderService>();
         services.AddScoped<IUnifiedAuthService, UnifiedAuthService>();
+        services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddScoped<IAdminAuthService, AdminAuthService>();
         services.AddScoped<IAdminManagementService, AdminManagementService>();
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();
@@ -73,6 +76,7 @@ public static class DependencyInjection
         services.AddScoped<IVehicleService, VehicleService>();
         services.AddScoped<ISavedPlaceService, SavedPlaceService>();
         services.AddScoped<IRatingService, RatingService>();
+        services.AddScoped<IMessageService, MessageService>();
         services.AddScoped<IDriverReviewService, DriverReviewService>();
         services.AddScoped<IPayoutService, PayoutService>();
         services.AddScoped<IPushService, PushService>();

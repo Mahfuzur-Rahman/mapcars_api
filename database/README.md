@@ -60,6 +60,10 @@ so re-running them is safe.
 | `020_posters.sql` | `posters`, `menus`, `role_menus` (+ "Posters" `/admin/posters` sidebar entry, granted to SuperAdmin + Admin) |
 | `021_error_logs.sql` | `error_logs` (central error log — API, web and both apps write here), `menus`, `role_menus` (+ "Error Logger" `/admin/error-logs` entry, granted to SuperAdmin + Admin) |
 | `022_email_log.sql` | `email_log` (every email sent, via `LoggingEmailService`), `menus`, `role_menus` (+ "Email" `/admin/emails` entry, granted to SuperAdmin + Admin) |
+| `023_rider_profile_picture.sql` | `riders` (+ `ProfilePictureKey`/`ProfilePictureContentType` — R2 object pointer for the rider's avatar) |
+| `024_trip_pin.sql` | `trips` (+ `Pin` — 4-digit meet-up code, generated at booking; rider shows it, driver confirms it before starting) |
+| `025_refresh_tokens.sql` | `refresh_tokens` (long-lived, hashed, rotated-on-use credential behind "stay signed in until you sign out"; revocable, unlike the JWT) |
+| `026_trip_messages.sql` | `trip_messages` (in-trip rider↔driver chat; persisted history + realtime `messageReceived` push over the trip's existing SignalR group) |
 
 ## Conventions
 

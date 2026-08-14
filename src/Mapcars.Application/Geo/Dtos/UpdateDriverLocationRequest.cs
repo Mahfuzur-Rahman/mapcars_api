@@ -2,8 +2,8 @@ namespace Mapcars.Application.Geo.Dtos;
 
 /// <summary>
 /// A driver's current position, pushed periodically while they're online. Kept in
-/// Redis GEO (the hot path) — never Postgres. Heading/speed are intentionally
-/// omitted from v1; add them (in a companion hash) when the tracking UI needs them.
+/// Redis GEO (the hot path) — never Postgres, with heading in a companion hash.
+/// Speed is still not carried: nothing renders it, and ETA comes from the route.
 /// </summary>
 /// <param name="TripId">
 /// The driver's active trip, if any — when present (and it really is this

@@ -19,6 +19,16 @@ public interface IDriverLocationStore
     /// <summary>Remove a driver from the live pool (going offline).</summary>
     Task RemoveAsync(Guid driverId, CancellationToken ct = default);
 
+    /// <summary>
+    /// One driver's last known position, or null if they aren't in the live pool.
+    /// Unlike <see cref="QueryNearbyAsync"/> this does <b>not</b> filter on
+    /// freshness — the caller is asking about a specific driver they're already
+    /// tracking, and a position from 90 seconds ago (stamped with
+    /// <c>UpdatedAtUtc</c> so the caller can judge it) is far more useful to them
+    /// than nothing at all.
+    /// </summary>
+    Task<DriverPosition?> GetAsync(Guid driverId, CancellationToken ct = default);
+
     /// <summary>Online drivers within <paramref name="radiusMeters"/>, nearest first.</summary>
     Task<IReadOnlyList<NearbyDriver>> QueryNearbyAsync(
         double lat, double lng, double radiusMeters, int limit, CancellationToken ct = default);

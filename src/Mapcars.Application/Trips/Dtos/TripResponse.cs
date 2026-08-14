@@ -31,7 +31,9 @@ public record TripResponse(
     DateTime? CancelledAtUtc,
     string? CancelledReason,
     bool IsNoShow,
-    TripDriverInfo? Driver);
+    TripDriverInfo? Driver,
+    TripRiderInfo? Rider = null,
+    string? Pin = null);
 
 /// <summary>
 /// The assigned driver's public details, shown on the rider's tracking card.
@@ -44,6 +46,17 @@ public record TripDriverInfo(
     decimal? Rating,
     string? Vehicle,
     string? Plate);
+
+/// <summary>
+/// The rider's public details, shown on the assigned driver's pickup/arrived
+/// screens so they know who they're collecting. Only populated for the trip's
+/// own two parties — never on the open dispatch board, where broadcasting a
+/// rider's name to every nearby driver would leak it to people who never take
+/// the trip. Like <see cref="TripDriverInfo"/>, deliberately excludes phone.
+/// </summary>
+public record TripRiderInfo(
+    string Name,
+    decimal? Rating);
 
 /// <summary>Cancel a trip. <c>IsNoShow</c> is only honoured for a driver cancelling after arriving.</summary>
 public record CancelTripRequest(string? Reason, bool IsNoShow = false);

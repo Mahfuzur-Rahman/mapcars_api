@@ -4,6 +4,14 @@ public class AuthResponse
 {
     public string Token { get; set; } = string.Empty;
     public int ExpiresInMinutes { get; set; }
+
+    /// <summary>
+    /// Long-lived credential the client stores and exchanges at
+    /// <c>POST /api/v1/auth/refresh</c> for a fresh <see cref="Token"/>. This is
+    /// what keeps a user signed in past the access token's short life instead of
+    /// bouncing them to the login screen every hour.
+    /// </summary>
+    public string RefreshToken { get; set; } = string.Empty;
     public string UserType { get; set; } = string.Empty; // "rider" | "driver"
     public Guid UserId { get; set; }
     public string? FullName { get; set; }

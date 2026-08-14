@@ -1,6 +1,8 @@
 using Mapcars.Application.Admins.Interfaces;
+using Mapcars.Application.Auth.Interfaces;
 using Mapcars.Application.Common.Dtos;
 using Mapcars.Application.Common.Exceptions;
+using Mapcars.Application.Common.Files;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Application.Riders.Dtos;
 using Mapcars.Application.Riders.Interfaces;
@@ -15,6 +17,8 @@ public class RiderAuthService(
     IOtpService otpService,
     IGoogleAuthService googleAuth,
     IJwtService jwt,
+    IRefreshTokenService refreshTokens,
+    IFileStorageService storage,
     IAppEnvironment env,
     IUnitOfWork uow) : IRiderAuthService
 {
@@ -61,7 +65,7 @@ public class RiderAuthService(
         }
 
         await uow.SaveChangesAsync(ct);
-        return BuildResponse(rider);
+        return await BuildResponseAsync(rider, ct);
     }
 
     // ── Email ─────────────────────────────────────────────────────────────────
@@ -126,7 +130,7 @@ public class RiderAuthService(
 
         rider.IsEmailVerified = true;
         await uow.SaveChangesAsync(ct);
-        return BuildResponse(rider);
+        return await BuildResponseAsync(rider, ct);
     }
 
     public async Task<AuthResponse> LoginWithEmailAsync(string email, string password, CancellationToken ct = default)
@@ -144,7 +148,7 @@ public class RiderAuthService(
         if (rider.PasswordHash is null || !hasher.Verify(password, rider.PasswordHash))
             throw new UnauthorizedException("Invalid email or password.");
 
-        return BuildResponse(rider);
+        return await BuildResponseAsync(rider, ct);
     }
 
     // ── Google ────────────────────────────────────────────────────────────────
@@ -206,7 +210,7 @@ public class RiderAuthService(
         if (!rider.IsActive)
             throw new UnauthorizedException("Your account has been disabled.");
 
-        return BuildResponse(rider);
+        return await BuildResponseAsync(rider, ct);
     }
 
     // ── Profile ───────────────────────────────────────────────────────────────
@@ -262,6 +266,33 @@ public class RiderAuthService(
         await uow.SaveChangesAsync(ct);
     }
 
+    public async Task<RiderProfileResponse> UploadProfilePictureAsync(
+        Guid riderId, Stream content, string fileName, string contentType, long fileSize, CancellationToken ct = default)
+    {
+        // Security gate: profile pictures are images only (no PDF), allowlisted + size-capped.
+        FileUploadPolicy.EnsureValidImage(contentType, fileName, fileSize);
+
+        var rider = await repo.GetByIdAsync(riderId, ct)
+            ?? throw new NotFoundException("Rider", riderId);
+
+        rider.ProfilePictureKey = await storage.SaveAsync(content, fileName, contentType, ct);
+        rider.ProfilePictureContentType = contentType;
+
+        await uow.SaveChangesAsync(ct);
+        return BuildProfileResponse(rider);
+    }
+
+    public async Task<(Stream Content, string ContentType)?> GetProfilePictureAsync(Guid riderId, CancellationToken ct = default)
+    {
+        var rider = await repo.GetByIdAsync(riderId, ct)
+            ?? throw new NotFoundException("Rider", riderId);
+
+        if (rider.ProfilePictureKey is null) return null;
+
+        var stream = await storage.OpenReadAsync(rider.ProfilePictureKey, ct);
+        return stream is null ? null : (stream, rider.ProfilePictureContentType ?? "application/octet-stream");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static RiderProfileResponse BuildProfileResponse(Rider rider) => new()
@@ -274,6 +305,7 @@ public class RiderAuthService(
         EmergencyContactPhone = rider.EmergencyContactPhone,
         MarketingConsent = rider.MarketingConsent,
         AccessibilityNeeds = rider.AccessibilityNeeds,
+        HasProfilePicture = rider.ProfilePictureKey is not null,
         IsProfileComplete = rider.IsProfileComplete,
         AverageRating = rider.AverageRating,
         RatingCount = rider.RatingCount,
@@ -281,10 +313,18 @@ public class RiderAuthService(
         NoShowCount = rider.NoShowCount,
     };
 
-    private AuthResponse BuildResponse(Rider rider) => new()
+    /// <summary>
+    /// Builds the signed-in response, minting both the short-lived access token
+    /// and the long-lived refresh token that keeps the rider signed in afterwards.
+    /// Async because issuing the refresh token persists it — every caller has
+    /// already committed its own changes by this point, so the extra save can't
+    /// commit anything half-finished.
+    /// </summary>
+    private async Task<AuthResponse> BuildResponseAsync(Rider rider, CancellationToken ct) => new()
     {
         Token = jwt.GenerateUserToken(rider.Id, rider.Email ?? rider.PhoneNumber, UserType),
         ExpiresInMinutes = jwt.ExpiryMinutes,
+        RefreshToken = await refreshTokens.IssueAsync(rider.Id, UserType, ct: ct),
         UserType = UserType,
         UserId = rider.Id,
         FullName = rider.FullName,

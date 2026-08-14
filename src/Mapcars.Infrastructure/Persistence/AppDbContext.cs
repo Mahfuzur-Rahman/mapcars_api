@@ -21,6 +21,7 @@ public class AppDbContext : DbContext, IUnitOfWork
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<SavedPlace> SavedPlaces => Set<SavedPlace>();
     public DbSet<Rating> Ratings => Set<Rating>();
+    public DbSet<TripMessage> TripMessages => Set<TripMessage>();
     public DbSet<DriverPayoutAccount> DriverPayoutAccounts => Set<DriverPayoutAccount>();
     public DbSet<Payout> Payouts => Set<Payout>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
@@ -45,6 +46,10 @@ public class AppDbContext : DbContext, IUnitOfWork
 
     // Rider/Driver auth (database-first — tables altered via database/002_rider_driver_auth.sql)
     public DbSet<VerificationCode> VerificationCodes => Set<VerificationCode>();
+
+    // Long-lived refresh tokens — what keeps a signed-in user signed in
+    // (database/025_refresh_tokens.sql).
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

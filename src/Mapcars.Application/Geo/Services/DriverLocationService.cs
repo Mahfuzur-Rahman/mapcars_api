@@ -75,7 +75,7 @@ public class DriverLocationService : IDriverLocationService
             if (trip is null || trip.DriverId != driverId) return;
             if (!RelayableStatuses.Contains(trip.Status)) return;
 
-            await _notifier.DriverLocationAsync(tripId, req.Lat, req.Lng, ct);
+            await _notifier.DriverLocationAsync(tripId, req.Lat, req.Lng, req.Heading, ct);
         }
         catch
         {
@@ -85,6 +85,30 @@ public class DriverLocationService : IDriverLocationService
 
     public Task GoOfflineAsync(Guid driverId, CancellationToken ct = default)
         => _store.RemoveAsync(driverId, ct);
+
+    public async Task<TripDriverLocationResponse?> ForTripAsync(
+        string callerType, Guid callerId, Guid tripId, CancellationToken ct = default)
+    {
+        var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
+
+        // Same rule as the trip endpoints: only this trip's two parties, and a
+        // non-party gets a 404 rather than a 403 (don't confirm the trip exists).
+        var isRider = callerType == "rider" && trip.RiderId == callerId;
+        var isDriver = callerType == "driver" && trip.DriverId == callerId;
+        if (!isRider && !isDriver) throw new NotFoundException("Trip", tripId);
+
+        // Nothing to report before a driver is assigned, or once the trip is over
+        // — a completed trip's driver is off on someone else's job by then, and
+        // their position is no longer this rider's business.
+        if (trip.DriverId is not { } driverId) return null;
+        if (!RelayableStatuses.Contains(trip.Status)) return null;
+
+        var pos = await _store.GetAsync(driverId, ct);
+        if (pos is null) return null;
+
+        var age = (int)Math.Max(0, (DateTime.UtcNow - pos.UpdatedAtUtc).TotalSeconds);
+        return new TripDriverLocationResponse(pos.Lat, pos.Lng, pos.Heading, pos.UpdatedAtUtc, age);
+    }
 
     public async Task<IReadOnlyList<NearbyDriverResponse>> NearbyAsync(
         double lat, double lng, double? radiusMeters, int? limit, CancellationToken ct = default)

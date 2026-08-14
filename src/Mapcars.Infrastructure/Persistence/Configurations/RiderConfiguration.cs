@@ -23,6 +23,8 @@ public class RiderConfiguration : IEntityTypeConfiguration<Rider>
         b.Property(r => r.EmergencyContactPhone).HasColumnName("emergency_contact_phone").HasMaxLength(20);
         b.Property(r => r.MarketingConsent).HasColumnName("marketing_consent");
         b.Property(r => r.AccessibilityNeeds).HasColumnName("accessibility_needs").HasMaxLength(500);
+        b.Property(r => r.ProfilePictureKey).HasMaxLength(255);
+        b.Property(r => r.ProfilePictureContentType).HasMaxLength(100);
 
         b.Property(r => r.CancellationCount).HasColumnName("cancellation_count");
         b.Property(r => r.NoShowCount).HasColumnName("no_show_count");

@@ -134,6 +134,7 @@ public class TripService : ITripService
             DropoffLat = req.DropoffLat,
             DropoffLng = req.DropoffLng,
             Status = Domain.Enums.TripStatus.Requested,
+            Pin = NewPin(),
 
             Tier = fare.TierId,
             DistanceMiles = req.DistanceMiles,
@@ -165,8 +166,18 @@ public class TripService : ITripService
             /* realtime broadcast is non-critical to booking */
         }
 
-        return trip.ToResponse();
+        // The rider is a party to their own trip, so they get the meet-up PIN
+        // straight back from booking — it's on their tracking screen before a
+        // driver is even assigned.
+        return trip.ToResponse(rider: await BuildRiderInfoAsync(trip.RiderId, ct), includePin: true);
     }
+
+    /// <summary>
+    /// A 4-digit meet-up code. Not a security token — it only has to be
+    /// unguessable enough that someone who pulled up at the same kerb can't
+    /// recite it, and short enough to read out loud.
+    /// </summary>
+    private static string NewPin() => Random.Shared.Next(1000, 10000).ToString();
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -285,7 +296,8 @@ public class TripService : ITripService
         if (!isRider && !isDriver) throw new NotFoundException("Trip", tripId); // don't leak others' trips
 
         var driver = await BuildDriverInfoAsync(trip.DriverId, ct);
-        return trip.ToResponse(driver);
+        var rider = await BuildRiderInfoAsync(trip.RiderId, ct);
+        return trip.ToResponse(driver, rider, includePin: true);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -304,6 +316,16 @@ public class TripService : ITripService
             driver.AverageRating,
             vehicle is null ? null : $"{vehicle.Colour} {vehicle.Make} {vehicle.Model}",
             vehicle?.RegistrationNumber);
+    }
+
+    /// <summary>Looks up the rider's public details for the assigned driver's
+    /// pickup card — who they're collecting.</summary>
+    private async Task<TripRiderInfo?> BuildRiderInfoAsync(Guid riderId, CancellationToken ct)
+    {
+        var rider = await _riders.GetByIdAsync(riderId, ct);
+        if (rider is null) return null;
+
+        return new TripRiderInfo(rider.FullName ?? "Your rider", rider.AverageRating);
     }
 
     private async Task<Trip> GetOwnedByDriverAsync(Guid driverId, Guid tripId, CancellationToken ct)
@@ -331,7 +353,12 @@ public class TripService : ITripService
     private async Task<TripResponse> NotifiedAsync(Trip trip, CancellationToken ct)
     {
         var driver = await BuildDriverInfoAsync(trip.DriverId, ct);
-        var response = trip.ToResponse(driver);
+        var rider = await BuildRiderInfoAsync(trip.RiderId, ct);
+
+        // The trip group only ever contains this trip's rider and its assigned
+        // driver (TripHub.JoinTrip enforces that), so both parties' details and
+        // the PIN are safe to carry on this response.
+        var response = trip.ToResponse(driver, rider, includePin: true);
         await _notifier.TripUpdatedAsync(response, ct);
 
         // Fire a push to the relevant party for lifecycle transitions that matter

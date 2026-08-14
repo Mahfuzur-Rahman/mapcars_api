@@ -17,6 +17,8 @@ public class Rider : BaseEntity
     public string? EmergencyContactPhone { get; set; }
     public bool MarketingConsent { get; set; }
     public string? AccessibilityNeeds { get; set; }
+    public string? ProfilePictureKey { get; set; }
+    public string? ProfilePictureContentType { get; set; }
 
     public int CancellationCount { get; set; }
     public int NoShowCount { get; set; }

@@ -1,3 +1,4 @@
+using Mapcars.Application.Messages.Dtos;
 using Mapcars.Application.Trips.Dtos;
 
 namespace Mapcars.Application.Realtime.Interfaces;
@@ -24,6 +25,13 @@ public interface ITripNotifier
     Task TripTakenAsync(Guid driverId, Guid tripId, CancellationToken ct = default);
 
     /// <summary>Relay the assigned driver's live position to everyone tracking
-    /// this trip (its per-trip group) — a <c>driverLocation</c> event.</summary>
-    Task DriverLocationAsync(Guid tripId, double lat, double lng, CancellationToken ct = default);
+    /// this trip (its per-trip group) — a <c>driverLocation</c> event.
+    /// <paramref name="heading"/> (degrees, 0 = north, clockwise) is null when the
+    /// device couldn't supply one; clients keep the marker's last known bearing
+    /// rather than snapping it back to north.</summary>
+    Task DriverLocationAsync(
+        Guid tripId, double lat, double lng, double? heading = null, CancellationToken ct = default);
+
+    /// <summary>Push a new chat message to everyone tracking this trip (its per-trip group).</summary>
+    Task MessageReceivedAsync(Guid tripId, MessageResponse message, CancellationToken ct = default);
 }

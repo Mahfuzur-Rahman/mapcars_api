@@ -87,4 +87,37 @@ public class RiderAuthController(IRiderAuthService authService) : ControllerBase
         await authService.ChangePasswordAsync(riderId, req, ct);
         return NoContent();
     }
+
+    /// <summary>Upload/replace the authenticated rider's profile picture.</summary>
+    [HttpPut("me/picture")]
+    [Authorize]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(25 * 1024 * 1024)]
+    public async Task<IActionResult> UploadPicture(IFormFile file, CancellationToken ct)
+    {
+        if (file.Length == 0)
+            return BadRequest(new { title = "The uploaded file is empty." });
+        var riderIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(riderIdStr, out var riderId))
+            return Unauthorized();
+
+        await using var stream = file.OpenReadStream();
+        return Ok(await authService.UploadProfilePictureAsync(riderId, stream, file.FileName, file.ContentType, file.Length, ct));
+    }
+
+    /// <summary>Stream back the authenticated rider's profile picture.</summary>
+    [HttpGet("me/picture")]
+    [Authorize]
+    public async Task<IActionResult> GetPicture(CancellationToken ct)
+    {
+        var riderIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(riderIdStr, out var riderId))
+            return Unauthorized();
+        var picture = await authService.GetProfilePictureAsync(riderId, ct);
+        if (picture is null) return NotFound();
+
+        // Stored content-type is client-supplied; stop the browser MIME-sniffing it.
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(picture.Value.Content, picture.Value.ContentType);
+    }
 }

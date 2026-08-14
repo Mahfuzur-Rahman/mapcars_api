@@ -12,6 +12,15 @@ public class JwtService(IConfiguration config) : IJwtService
 {
     public int ExpiryMinutes => int.TryParse(config["Jwt:ExpiryMinutes"], out var m) ? m : 60;
 
+    /// <summary>
+    /// 90 days by default: long enough that a regularly-used app never asks for
+    /// a password again, short enough that an abandoned device eventually goes
+    /// cold. Rotation extends it on every refresh, so an active session is
+    /// effectively indefinite — which is the point.
+    /// </summary>
+    public int RefreshTokenDays =>
+        int.TryParse(config["Jwt:RefreshTokenDays"], out var d) && d > 0 ? d : 90;
+
     public string GenerateToken(Admin admin)
     {
         var secret = config["Jwt:Secret"]

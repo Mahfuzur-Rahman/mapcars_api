@@ -1,4 +1,5 @@
 using Mapcars.Application.Admins.Interfaces;
+using Mapcars.Application.Auth.Interfaces;
 using Mapcars.Application.Common.Dtos;
 using Mapcars.Application.Common.Files;
 using Mapcars.Application.Common.Exceptions;
@@ -18,6 +19,7 @@ public class DriverAuthService(
     IOtpService otpService,
     IGoogleAuthService googleAuth,
     IJwtService jwt,
+    IRefreshTokenService refreshTokens,
     IFileStorageService storage,
     IAppEnvironment env,
     IDriverLocationStore locations,
@@ -69,7 +71,7 @@ public class DriverAuthService(
         }
 
         await uow.SaveChangesAsync(ct);
-        return BuildResponse(driver);
+        return await BuildResponseAsync(driver, ct);
     }
 
     // ── Email ─────────────────────────────────────────────────────────────────
@@ -134,7 +136,7 @@ public class DriverAuthService(
 
         driver.IsEmailVerified = true;
         await uow.SaveChangesAsync(ct);
-        return BuildResponse(driver);
+        return await BuildResponseAsync(driver, ct);
     }
 
     public async Task<AuthResponse> LoginWithEmailAsync(string email, string password, CancellationToken ct = default)
@@ -149,7 +151,7 @@ public class DriverAuthService(
         if (driver.PasswordHash is null || !hasher.Verify(password, driver.PasswordHash))
             throw new UnauthorizedException("Invalid email or password.");
 
-        return BuildResponse(driver);
+        return await BuildResponseAsync(driver, ct);
     }
 
     // ── Google ────────────────────────────────────────────────────────────────
@@ -205,7 +207,7 @@ public class DriverAuthService(
             await uow.SaveChangesAsync(ct);
         }
 
-        return BuildResponse(driver);
+        return await BuildResponseAsync(driver, ct);
     }
 
     // ── Profile ───────────────────────────────────────────────────────────────
@@ -361,10 +363,18 @@ public class DriverAuthService(
         CreatedAtUtc = driver.CreatedAtUtc,
     };
 
-    private AuthResponse BuildResponse(Driver driver) => new()
+    /// <summary>
+    /// Builds the signed-in response, minting both the short-lived access token
+    /// and the long-lived refresh token that keeps the driver signed in afterwards.
+    /// Async because issuing the refresh token persists it — every caller has
+    /// already committed its own changes by this point, so the extra save can't
+    /// commit anything half-finished.
+    /// </summary>
+    private async Task<AuthResponse> BuildResponseAsync(Driver driver, CancellationToken ct) => new()
     {
         Token = jwt.GenerateUserToken(driver.Id, driver.Email ?? driver.PhoneNumber, UserType),
         ExpiresInMinutes = jwt.ExpiryMinutes,
+        RefreshToken = await refreshTokens.IssueAsync(driver.Id, UserType, ct: ct),
         UserType = UserType,
         UserId = driver.Id,
         FullName = driver.FullName,

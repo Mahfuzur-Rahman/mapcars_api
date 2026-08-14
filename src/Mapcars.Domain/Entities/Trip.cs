@@ -21,6 +21,13 @@ public class Trip : BaseEntity
 
     public TripStatus Status { get; set; } = TripStatus.Requested;
 
+    /// <summary>
+    /// 4-digit meet-up code, generated at booking. The rider reads it out at the
+    /// kerb and the driver confirms it before starting the trip. Null on trips
+    /// booked before this existed — clients treat that as "nothing to confirm".
+    /// </summary>
+    public string? Pin { get; set; }
+
     /// <summary>Final fare in GBP (incl. VAT). Priced at booking from the fare chart.</summary>
     public decimal? FareAmount { get; set; }
 

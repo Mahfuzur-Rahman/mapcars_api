@@ -20,7 +20,8 @@ public class UnifiedAuthService(
     IRiderRepository riderRepo,
     IDriverRepository driverRepo,
     IPasswordHasher hasher,
-    IJwtService jwt) : IUnifiedAuthService
+    IJwtService jwt,
+    IRefreshTokenService refreshTokens) : IUnifiedAuthService
 {
     public async Task<UnifiedLoginResponse> LoginAsync(UnifiedLoginRequest request, CancellationToken ct = default)
     {
@@ -29,7 +30,7 @@ public class UnifiedAuthService(
 
         var admin = await adminRepo.GetByEmailAsync(email, ct);
         if (admin is not null && hasher.Verify(password, admin.PasswordHash))
-            return BuildAdminResponse(admin, await adminRepo.GetMenusForAdminAsync(admin.Id, admin.RoleId, ct));
+            return await BuildAdminResponseAsync(admin, await adminRepo.GetMenusForAdminAsync(admin.Id, admin.RoleId, ct), ct);
 
         var rider = await riderRepo.FindByEmailAsync(email, ct);
         var riderMatches = rider is not null && rider.PasswordHash is not null && hasher.Verify(password, rider.PasswordHash);
@@ -45,14 +46,14 @@ public class UnifiedAuthService(
         {
             return request.LoginAs switch
             {
-                "rider" => BuildUserResponse(rider!, "rider"),
-                "driver" => BuildUserResponse(driver!, "driver"),
+                "rider" => await BuildUserResponseAsync(rider!, "rider", ct),
+                "driver" => await BuildUserResponseAsync(driver!, "driver", ct),
                 _ => new UnifiedLoginResponse { RequiresChoice = true, AvailableUserTypes = ["rider", "driver"] },
             };
         }
 
-        if (riderMatches) return BuildUserResponse(rider!, "rider");
-        if (driverMatches) return BuildUserResponse(driver!, "driver");
+        if (riderMatches) return await BuildUserResponseAsync(rider!, "rider", ct);
+        if (driverMatches) return await BuildUserResponseAsync(driver!, "driver", ct);
 
         // Deliberately generic — never reveal which table(s) the email exists
         // in, and never reveal *whose* password was wrong if it happens to
@@ -60,7 +61,7 @@ public class UnifiedAuthService(
         throw new UnauthorizedException("Invalid email or password.");
     }
 
-    private UnifiedLoginResponse BuildAdminResponse(Admin admin, List<Domain.Entities.Menu> menus)
+    private async Task<UnifiedLoginResponse> BuildAdminResponseAsync(Admin admin, List<Domain.Entities.Menu> menus, CancellationToken ct)
     {
         if (!admin.IsActive)
             throw new UnauthorizedException("This account has been disabled.");
@@ -69,13 +70,14 @@ public class UnifiedAuthService(
         {
             Token = jwt.GenerateToken(admin),
             ExpiresInMinutes = jwt.ExpiryMinutes,
+            RefreshToken = await refreshTokens.IssueAsync(admin.Id, "admin", ct: ct),
             UserType = "admin",
             Admin = admin.ToResponse(),
             Menus = menus.ToMenuTree(),
         };
     }
 
-    private UnifiedLoginResponse BuildUserResponse(Rider rider, string userType)
+    private async Task<UnifiedLoginResponse> BuildUserResponseAsync(Rider rider, string userType, CancellationToken ct)
     {
         if (!rider.IsEmailVerified)
             throw new UnauthorizedException("Please verify your email before logging in.");
@@ -86,6 +88,7 @@ public class UnifiedAuthService(
         {
             Token = jwt.GenerateUserToken(rider.Id, rider.Email ?? rider.PhoneNumber, userType),
             ExpiresInMinutes = jwt.ExpiryMinutes,
+            RefreshToken = await refreshTokens.IssueAsync(rider.Id, userType, ct: ct),
             UserType = userType,
             UserId = rider.Id,
             FullName = rider.FullName,
@@ -97,7 +100,7 @@ public class UnifiedAuthService(
         };
     }
 
-    private UnifiedLoginResponse BuildUserResponse(Driver driver, string userType)
+    private async Task<UnifiedLoginResponse> BuildUserResponseAsync(Driver driver, string userType, CancellationToken ct)
     {
         if (!driver.IsEmailVerified)
             throw new UnauthorizedException("Please verify your email before logging in.");
@@ -106,6 +109,7 @@ public class UnifiedAuthService(
         {
             Token = jwt.GenerateUserToken(driver.Id, driver.Email ?? driver.PhoneNumber, userType),
             ExpiresInMinutes = jwt.ExpiryMinutes,
+            RefreshToken = await refreshTokens.IssueAsync(driver.Id, userType, ct: ct),
             UserType = userType,
             UserId = driver.Id,
             FullName = driver.FullName,

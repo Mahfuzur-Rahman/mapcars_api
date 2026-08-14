@@ -69,6 +69,32 @@ public sealed class RedisDriverLocationStore : IDriverLocationStore
         await Task.WhenAll(geo, seen, heading);
     }
 
+    public async Task<DriverPosition?> GetAsync(Guid driverId, CancellationToken ct = default)
+    {
+        var db = Db();
+        if (db is null) { WarnUnavailable(); return null; }
+
+        var member = Member(driverId);
+
+        // GEOPOS takes a params array and returns one nullable position per member.
+        var positions = await db.GeoPositionAsync(GeoKey, [member]);
+        if (positions.Length == 0 || positions[0] is not { } pos) return null;
+
+        var seen = await db.SortedSetScoreAsync(SeenKey, member);
+        var headingValue = await db.HashGetAsync(HeadingKey, member);
+
+        return new DriverPosition(
+            pos.Latitude,
+            pos.Longitude,
+            headingValue.IsNullOrEmpty ? null : (double)headingValue,
+            // No "seen" score shouldn't happen (Upsert writes both in one batch),
+            // but a missing one must not read as 1970 — that would make a live
+            // driver look indefinitely stale to the caller.
+            seen is null
+                ? DateTime.UtcNow
+                : DateTimeOffset.FromUnixTimeSeconds((long)seen).UtcDateTime);
+    }
+
     public async Task<IReadOnlyList<NearbyDriver>> QueryNearbyAsync(
         double lat, double lng, double radiusMeters, int limit, CancellationToken ct = default)
     {

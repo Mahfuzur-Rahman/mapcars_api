@@ -21,6 +21,11 @@ public class UnifiedLoginResponse
 
     public string Token { get; set; } = string.Empty;
     public int ExpiresInMinutes { get; set; }
+
+    /// <summary>Long-lived credential for <c>POST /api/v1/auth/refresh</c>. Empty
+    /// when <see cref="RequiresChoice"/> is set — no session exists yet.</summary>
+    public string RefreshToken { get; set; } = string.Empty;
+
     public string UserType { get; set; } = string.Empty; // "admin" | "rider" | "driver"
 
     // Rider / driver

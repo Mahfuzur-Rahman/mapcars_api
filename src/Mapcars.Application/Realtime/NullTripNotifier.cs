@@ -1,3 +1,4 @@
+using Mapcars.Application.Messages.Dtos;
 using Mapcars.Application.Realtime.Interfaces;
 using Mapcars.Application.Trips.Dtos;
 
@@ -18,6 +19,10 @@ public sealed class NullTripNotifier : ITripNotifier
     public Task TripTakenAsync(Guid driverId, Guid tripId, CancellationToken ct = default)
         => Task.CompletedTask;
 
-    public Task DriverLocationAsync(Guid tripId, double lat, double lng, CancellationToken ct = default)
+    public Task DriverLocationAsync(
+        Guid tripId, double lat, double lng, double? heading = null, CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    public Task MessageReceivedAsync(Guid tripId, MessageResponse message, CancellationToken ct = default)
         => Task.CompletedTask;
 }

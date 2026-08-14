@@ -1,6 +1,7 @@
 using Mapcars.Application.Admins.Dtos;
 using Mapcars.Application.Admins.Interfaces;
 using Mapcars.Application.Admins.Mapping;
+using Mapcars.Application.Auth.Interfaces;
 using Mapcars.Application.Common.Dtos;
 using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Interfaces;
@@ -15,6 +16,7 @@ namespace Mapcars.Application.Admins.Services;
 public class AdminAuthService(
     IAdminRepository adminRepo,
     IJwtService jwtService,
+    IRefreshTokenService refreshTokens,
     IPasswordHasher hasher,
     IEmailService email,
     ILogger<AdminAuthService> logger,
@@ -37,6 +39,7 @@ public class AdminAuthService(
         {
             Token = jwtService.GenerateToken(admin),
             ExpiresInMinutes = jwtService.ExpiryMinutes,
+            RefreshToken = await refreshTokens.IssueAsync(admin.Id, "admin", ct: ct),
             Admin = admin.ToResponse(),
             Menus = menus.ToMenuTree(),
         };
@@ -102,11 +105,18 @@ public class AdminAuthService(
         {
             Token = jwtService.GenerateToken(saved),
             ExpiresInMinutes = jwtService.ExpiryMinutes,
+            RefreshToken = await refreshTokens.IssueAsync(saved.Id, "admin", ct: ct),
             Admin = saved.ToResponse(),
             Menus = menus.ToMenuTree(),
         };
     }
 
+    /// <summary>
+    /// "Who am I" for an already-signed-in admin. Deliberately does <b>not</b> mint
+    /// a refresh token: this is called on every portal page load, and issuing one
+    /// each time would add a row per call. The caller already holds the refresh
+    /// token it got at login, so <c>RefreshToken</c> comes back empty here.
+    /// </summary>
     public async Task<LoginResponse> GetCurrentAdminAsync(Guid adminId, CancellationToken ct = default)
     {
         var admin = await adminRepo.GetByIdWithRoleAsync(adminId, ct)

@@ -28,4 +28,8 @@ public interface IRiderAuthService
     // Profile
     Task<RiderProfileResponse> GetProfileAsync(Guid riderId, CancellationToken ct = default);
     Task<RiderProfileResponse> UpdateProfileAsync(Guid riderId, UpdateProfileRequest request, CancellationToken ct = default);
+
+    Task<RiderProfileResponse> UploadProfilePictureAsync(
+        Guid riderId, Stream content, string fileName, string contentType, long fileSize, CancellationToken ct = default);
+    Task<(Stream Content, string ContentType)?> GetProfilePictureAsync(Guid riderId, CancellationToken ct = default);
 }

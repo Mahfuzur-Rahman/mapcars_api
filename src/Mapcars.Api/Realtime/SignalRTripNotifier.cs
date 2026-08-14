@@ -1,4 +1,5 @@
 using Mapcars.Api.Hubs;
+using Mapcars.Application.Messages.Dtos;
 using Mapcars.Application.Realtime.Interfaces;
 using Mapcars.Application.Trips.Dtos;
 using Microsoft.AspNetCore.SignalR;
@@ -64,17 +65,32 @@ public sealed class SignalRTripNotifier : ITripNotifier
         }
     }
 
-    public async Task DriverLocationAsync(Guid tripId, double lat, double lng, CancellationToken ct = default)
+    public async Task DriverLocationAsync(
+        Guid tripId, double lat, double lng, double? heading = null, CancellationToken ct = default)
     {
         try
         {
             await _hub.Clients
                 .Group(TripHub.GroupFor(tripId.ToString()))
-                .SendAsync("driverLocation", new { lat, lng }, ct);
+                .SendAsync("driverLocation", new { lat, lng, heading }, ct);
         }
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Failed to push driverLocation for trip {TripId}.", tripId);
+        }
+    }
+
+    public async Task MessageReceivedAsync(Guid tripId, MessageResponse message, CancellationToken ct = default)
+    {
+        try
+        {
+            await _hub.Clients
+                .Group(TripHub.GroupFor(tripId.ToString()))
+                .SendAsync("messageReceived", message, ct);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to push messageReceived for trip {TripId}.", tripId);
         }
     }
 }

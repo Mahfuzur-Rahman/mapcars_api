@@ -16,6 +16,7 @@ public class RiderProfileResponse
     public string? EmergencyContactPhone { get; set; }
     public bool MarketingConsent { get; set; }
     public string? AccessibilityNeeds { get; set; }
+    public bool HasProfilePicture { get; set; }
     public bool IsProfileComplete { get; set; }
 
     public decimal? AverageRating { get; set; }
