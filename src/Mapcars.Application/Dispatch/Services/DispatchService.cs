@@ -4,6 +4,7 @@ using Mapcars.Application.Geo.Interfaces;
 using Mapcars.Application.Realtime.Interfaces;
 using Mapcars.Application.Trips.Interfaces;
 using Mapcars.Application.Trips.Mapping;
+using Mapcars.Application.Vehicles.Interfaces;
 using Mapcars.Domain.Entities;
 using Mapcars.Domain.Enums;
 
@@ -11,9 +12,7 @@ namespace Mapcars.Application.Dispatch.Services;
 
 /// <summary>
 /// Broadcast dispatch: when a trip is booked, push it to every nearby online,
-/// approved, free driver so it appears on their board in real time. Drivers then
-/// race to accept (first-come wins). Best-effort — with Redis/GEO unavailable the
-/// broadcast is skipped and drivers still see open requests via the board poll.
+/// approved, free driver with a compatible vehicle tier so it appears on their board in real time.
 /// </summary>
 public class DispatchService : IDispatchService
 {
@@ -22,17 +21,20 @@ public class DispatchService : IDispatchService
 
     private readonly IDriverLocationStore _locations;
     private readonly IDriverRepository _drivers;
+    private readonly IVehicleRepository _vehicles;
     private readonly ITripRepository _trips;
     private readonly ITripNotifier _notifier;
 
     public DispatchService(
         IDriverLocationStore locations,
         IDriverRepository drivers,
+        IVehicleRepository vehicles,
         ITripRepository trips,
         ITripNotifier notifier)
     {
         _locations = locations;
         _drivers = drivers;
+        _vehicles = vehicles;
         _trips = trips;
         _notifier = notifier;
     }
@@ -50,6 +52,9 @@ public class DispatchService : IDispatchService
             if (driver is null || driver.Status != DriverStatus.Approved || !driver.IsOnline) continue;
             if (await _trips.HasActiveTripAsync(candidate.DriverId, ct)) continue; // don't ping busy drivers
 
+            var vehicle = await _vehicles.GetByDriverAsync(candidate.DriverId, ct);
+            if (vehicle is not null && !IsTierCompatible(vehicle.Tier, trip.Tier)) continue;
+
             await _notifier.TripAvailableAsync(candidate.DriverId, response, ct);
         }
     }
@@ -60,5 +65,22 @@ public class DispatchService : IDispatchService
             trip.PickupLat, trip.PickupLng, BroadcastRadiusMeters, MaxDrivers, ct);
         foreach (var candidate in nearby)
             await _notifier.TripTakenAsync(candidate.DriverId, trip.Id, ct);
+    }
+
+    public static bool IsTierCompatible(string? driverTier, string? tripTier)
+    {
+        if (string.IsNullOrWhiteSpace(tripTier)) return true;
+        var dTier = (driverTier ?? "economy").ToLowerInvariant();
+        var tTier = tripTier.ToLowerInvariant();
+
+        if (dTier == tTier) return true;
+
+        return (dTier, tTier) switch
+        {
+            ("premium", "comfort" or "economy") => true,
+            ("xl", "comfort" or "economy") => true,
+            ("comfort", "economy") => true,
+            _ => false
+        };
     }
 }

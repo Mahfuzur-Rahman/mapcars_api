@@ -1,6 +1,7 @@
 using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Application.Dispatch.Interfaces;
+using Mapcars.Application.Dispatch.Services;
 using Mapcars.Application.Drivers;
 using Mapcars.Application.Drivers.Interfaces;
 using Mapcars.Application.Notifications.Dtos;
@@ -23,12 +24,8 @@ namespace Mapcars.Application.Trips.Services;
 /// <summary>
 /// Business logic for trips. Listing is read-only; booking (<see cref="CreateAsync"/>)
 /// prices the chosen tier authoritatively from the fare chart and snapshots the
-/// breakdown onto the trip so it's independent of later chart edits. Lifecycle
-/// transitions (accept/arrive/start/complete/cancel) are plain state changes.
-/// Every driver-facing entry point — discovering open trips via
-/// <see cref="ListAvailableAsync"/> just as much as <see cref="AcceptAsync"/> —
-/// goes through <c>EnsureCanReceiveRequestsAsync</c>, so only a driver an admin
-/// has approved (and who is online) ever sees or takes work.
+/// fare rules at that moment. The requests board (available trips) is filtered
+/// by driver status and vehicle tier compatibility.
 /// </summary>
 public class TripService : ITripService
 {
@@ -79,18 +76,24 @@ public class TripService : ITripService
     public async Task<IReadOnlyList<TripResponse>> ListAvailableAsync(Guid driverId, CancellationToken ct = default)
     {
         await EnsureCanReceiveRequestsAsync(driverId, ct);
+        var vehicle = await _vehicles.GetByDriverAsync(driverId, ct);
 
         var trips = await _trips.ListAvailableAsync(ct);
-        return trips.Select(t => t.ToResponse()).ToList();
+        return trips
+            .Where(t => vehicle is null || DispatchService.IsTierCompatible(vehicle.Tier, t.Tier))
+            .Select(t => t.ToResponse())
+            .ToList();
     }
 
     public async Task<IReadOnlyList<TripResponse>> ListAvailableNearbyAsync(
         Guid driverId, double lat, double lng, double radiusMeters, CancellationToken ct = default)
     {
         await EnsureCanReceiveRequestsAsync(driverId, ct);
+        var vehicle = await _vehicles.GetByDriverAsync(driverId, ct);
 
         var trips = await _trips.ListAvailableAsync(ct);
         return trips
+            .Where(t => vehicle is null || DispatchService.IsTierCompatible(vehicle.Tier, t.Tier))
             .Select(t => (trip: t, meters: FareCalculator.HaversineMeters(lat, lng, t.PickupLat, t.PickupLng)))
             .Where(x => x.meters <= radiusMeters)
             .OrderBy(x => x.meters)

@@ -18,6 +18,7 @@ public class AppDbContext : DbContext, IUnitOfWork
     public DbSet<Driver> Drivers => Set<Driver>();
     public DbSet<Trip> Trips => Set<Trip>();
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
+    public DbSet<VehicleTierAppeal> VehicleTierAppeals => Set<VehicleTierAppeal>();
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<SavedPlace> SavedPlaces => Set<SavedPlace>();
     public DbSet<Rating> Ratings => Set<Rating>();

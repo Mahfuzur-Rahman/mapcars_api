@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using Mapcars.Application.DriverReview.Dtos;
 using Mapcars.Application.DriverReview.Interfaces;
+using Mapcars.Application.Vehicles.Dtos;
 using Mapcars.Domain.Enums;
 using Mapcars.Domain.Exceptions;
 using Microsoft.AspNetCore.Authorization;
@@ -8,9 +10,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace Mapcars.Api.Controllers;
 
 /// <summary>
-/// Admin driver-verification workflow: browse drivers awaiting approval, view
-/// their uploaded documents, approve/reject each document, and set the driver's
-/// overall status. Admin-only — both SuperAdmin and Admin roles.
+/// Admin driver-verification and vehicle tier workflow: browse drivers awaiting approval, view
+/// their uploaded documents, approve/reject each document, set driver status, manage vehicle tiers,
+/// and review tier upgrade appeals. Admin-only — both SuperAdmin and Admin roles.
 /// </summary>
 [ApiController]
 [Route("api/v1/admin/driver-review")]
@@ -70,9 +72,54 @@ public class AdminDriverReviewController : ControllerBase
         return Ok(await _review.SetDriverStatusAsync(driverId, status, ct));
     }
 
-    // JSON enum binding isn't configured globally, so parse names explicitly and
-    // surface a clean 400 (via DomainException) on anything unexpected — and
-    // restrict document review to the two valid outcomes (never back to Pending).
+    // ── Vehicle Tier & Appeal Management ─────────────────────────────────────
+
+    /// <summary>Admin directly sets/overrides a driver's vehicle tier.</summary>
+    [HttpPut("drivers/{driverId:guid}/tier")]
+    [ProducesResponseType(typeof(VehicleResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SetVehicleTier(Guid driverId, [FromBody] SetVehicleTierRequest request, CancellationToken ct)
+        => Ok(await _review.SetVehicleTierAsync(driverId, request.Tier, ct));
+
+    /// <summary>List tier appeals for a specific driver.</summary>
+    [HttpGet("drivers/{driverId:guid}/appeals")]
+    [ProducesResponseType(typeof(IReadOnlyList<VehicleTierAppealResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetDriverAppeals(Guid driverId, CancellationToken ct)
+        => Ok(await _review.GetTierAppealsForDriverAsync(driverId, ct));
+
+    /// <summary>List tier appeals across all drivers with optional status filter.</summary>
+    [HttpGet("tier-appeals")]
+    [ProducesResponseType(typeof(IReadOnlyList<TierAppealListItem>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListTierAppeals([FromQuery] TierAppealStatus? status, CancellationToken ct)
+        => Ok(await _review.ListTierAppealsAsync(status, ct));
+
+    /// <summary>Stream an attached photo from a tier appeal for admin preview.</summary>
+    [HttpGet("tier-appeals/{appealId:guid}/photos/{photoIndex:int}/content")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAppealPhotoContent(Guid appealId, int photoIndex, CancellationToken ct)
+    {
+        var file = await _review.GetAppealPhotoContentAsync(appealId, photoIndex, ct);
+        if (file is null) return NotFound();
+
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(file.Content, file.ContentType);
+    }
+
+    /// <summary>Approve or reject a tier appeal (triggers automatic vehicle tier upgrade on approve, plus email and push).</summary>
+    [HttpPut("tier-appeals/{appealId:guid}/review")]
+    [ProducesResponseType(typeof(VehicleTierAppealResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ReviewTierAppeal(Guid appealId, [FromBody] ReviewTierAppealRequest request, CancellationToken ct)
+    {
+        if (!TryGetAdminId(out var adminId)) return Unauthorized();
+
+        var status = ParseAppealStatus(request.Status);
+        return Ok(await _review.ReviewTierAppealAsync(appealId, adminId, status, request.AdminNotes, ct));
+    }
+
     private static DocumentReviewStatus ParseReviewStatus(string value)
     {
         if (Enum.TryParse<DocumentReviewStatus>(value, ignoreCase: true, out var status)
@@ -87,4 +134,15 @@ public class AdminDriverReviewController : ControllerBase
             return status;
         throw new DomainException("Status must be one of: PendingApproval, Approved, Suspended, Rejected.");
     }
+
+    private static TierAppealStatus ParseAppealStatus(string value)
+    {
+        if (Enum.TryParse<TierAppealStatus>(value, ignoreCase: true, out var status)
+            && status is TierAppealStatus.Approved or TierAppealStatus.Rejected)
+            return status;
+        throw new DomainException("Appeal status must be 'Approved' or 'Rejected'.");
+    }
+
+    private bool TryGetAdminId(out Guid adminId)
+        => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out adminId);
 }

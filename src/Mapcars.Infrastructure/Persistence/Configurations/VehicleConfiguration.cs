@@ -20,6 +20,7 @@ public class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
         b.Property(v => v.RegistrationNumber).HasColumnName("registration_number").IsRequired().HasMaxLength(15);
         b.Property(v => v.PhvLicencePlateNumber).HasColumnName("phv_licence_plate_number").HasMaxLength(30);
         b.Property(v => v.PhvLicensingAuthority).HasColumnName("phv_licensing_authority").HasMaxLength(120);
+        b.Property(v => v.Tier).HasColumnName("tier").IsRequired().HasMaxLength(30).HasDefaultValue("economy");
 
         b.HasOne(v => v.Driver)
             .WithMany()
@@ -29,5 +30,6 @@ public class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
         // One vehicle per driver, and registration plates are unique platform-wide.
         b.HasIndex(v => v.DriverId).IsUnique();
         b.HasIndex(v => v.RegistrationNumber).IsUnique();
+        b.HasIndex(v => v.Tier);
     }
 }

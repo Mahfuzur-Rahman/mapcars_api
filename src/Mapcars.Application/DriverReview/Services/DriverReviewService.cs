@@ -6,43 +6,62 @@ using Mapcars.Application.DriverReview.Dtos;
 using Mapcars.Application.DriverReview.Interfaces;
 using Mapcars.Application.Drivers.Interfaces;
 using Mapcars.Application.Geo.Interfaces;
+using Mapcars.Application.Notifications.Dtos;
+using Mapcars.Application.Notifications.Interfaces;
+using Mapcars.Application.Vehicles.Dtos;
 using Mapcars.Application.Vehicles.Interfaces;
 using Mapcars.Application.Vehicles.Mapping;
 using Mapcars.Domain.Enums;
 using Mapcars.Domain.Exceptions;
+using Microsoft.Extensions.Logging;
 using NotFoundException = Mapcars.Application.Common.Exceptions.NotFoundException;
 
 namespace Mapcars.Application.DriverReview.Services;
 
 /// <summary>
-/// Admin document review. Reads a driver's KYC/vehicle documents, streams them
-/// for viewing, and records approve/reject decisions. The overall driver
-/// go/no-go (DriverStatus) is a separate explicit admin action so an admin can
-/// review each document before letting a driver work.
+/// Admin document review and vehicle tier management. Reads a driver's KYC/vehicle documents,
+/// records approve/reject decisions, manages vehicle tiers, and handles tier appeals.
 /// </summary>
 public class DriverReviewService : IDriverReviewService
 {
+    private static readonly HashSet<string> AllowedTiers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "economy", "comfort", "xl", "premium"
+    };
+
     private readonly IDriverRepository _drivers;
     private readonly IDocumentRepository _documents;
     private readonly IVehicleRepository _vehicles;
+    private readonly IVehicleTierAppealRepository _appeals;
     private readonly IFileStorageService _storage;
     private readonly IDriverLocationStore _locations;
+    private readonly IEmailService _email;
+    private readonly IPushService _push;
     private readonly IUnitOfWork _uow;
+    private readonly ILogger<DriverReviewService> _logger;
 
     public DriverReviewService(
         IDriverRepository drivers,
         IDocumentRepository documents,
         IVehicleRepository vehicles,
+        IVehicleTierAppealRepository appeals,
         IFileStorageService storage,
         IDriverLocationStore locations,
-        IUnitOfWork uow)
+        IEmailService email,
+        IPushService push,
+        IUnitOfWork uow,
+        ILogger<DriverReviewService> logger)
     {
         _drivers = drivers;
         _documents = documents;
         _vehicles = vehicles;
+        _appeals = appeals;
         _storage = storage;
         _locations = locations;
+        _email = email;
+        _push = push;
         _uow = uow;
+        _logger = logger;
     }
 
     public async Task<IReadOnlyList<DriverReviewListItem>> ListDriversAsync(DriverStatus? status, CancellationToken ct = default)
@@ -149,5 +168,160 @@ public class DriverReviewService : IDriverReviewService
             await _locations.RemoveAsync(driverId, ct);
 
         return await GetDriverAsync(driverId, ct);
+    }
+
+    // ── Vehicle Tier & Appeals ───────────────────────────────────────────────
+
+    public async Task<VehicleResponse> SetVehicleTierAsync(Guid driverId, string tier, CancellationToken ct = default)
+    {
+        var vehicle = await _vehicles.GetByDriverAsync(driverId, ct)
+            ?? throw new NotFoundException("Vehicle for driver", driverId);
+
+        var normalisedTier = tier.Trim().ToLowerInvariant();
+        if (!AllowedTiers.Contains(normalisedTier))
+            throw new DomainException($"Invalid tier '{tier}'. Allowed tiers are: {string.Join(", ", AllowedTiers)}");
+
+        vehicle.Tier = normalisedTier;
+        _vehicles.Update(vehicle);
+        await _uow.SaveChangesAsync(ct);
+
+        return vehicle.ToResponse();
+    }
+
+    public async Task<IReadOnlyList<TierAppealListItem>> ListTierAppealsAsync(TierAppealStatus? status = null, CancellationToken ct = default)
+    {
+        var appeals = await _appeals.ListAllAsync(status, ct);
+        return appeals.Select(a => a.ToListItem()).ToList();
+    }
+
+    public async Task<IReadOnlyList<VehicleTierAppealResponse>> GetTierAppealsForDriverAsync(Guid driverId, CancellationToken ct = default)
+    {
+        var appeals = await _appeals.ListForDriverAsync(driverId, ct);
+        return appeals.Select(a => a.ToResponse(
+            a.PhotoStorageKeys?.Select((_, idx) => $"/api/v1/admin/driver-review/tier-appeals/{a.Id}/photos/{idx}/content").ToList()
+        )).ToList();
+    }
+
+    public async Task<FileContent?> GetAppealPhotoContentAsync(Guid appealId, int photoIndex, CancellationToken ct = default)
+    {
+        var appeal = await _appeals.GetByIdAsync(appealId, ct);
+        if (appeal is null || appeal.PhotoStorageKeys is null || photoIndex < 0 || photoIndex >= appeal.PhotoStorageKeys.Count)
+            return null;
+
+        var key = appeal.PhotoStorageKeys[photoIndex];
+        var stream = await _storage.OpenReadAsync(key, ct);
+        if (stream is null) return null;
+
+        return new FileContent(stream, "image/jpeg", Path.GetFileName(key));
+    }
+
+    public async Task<VehicleTierAppealResponse> ReviewTierAppealAsync(
+        Guid appealId,
+        Guid adminId,
+        TierAppealStatus status,
+        string? adminNotes = null,
+        CancellationToken ct = default)
+    {
+        var appeal = await _appeals.GetByIdWithDetailsAsync(appealId, ct)
+            ?? throw new NotFoundException("Tier appeal", appealId);
+
+        if (appeal.Status != TierAppealStatus.Pending)
+            throw new DomainException($"Appeal has already been decided ({appeal.Status}).");
+
+        if (status is not (TierAppealStatus.Approved or TierAppealStatus.Rejected))
+            throw new DomainException("Review decision must be 'Approved' or 'Rejected'.");
+
+        appeal.Status = status;
+        appeal.AdminNotes = adminNotes?.Trim();
+        appeal.ReviewedByAdminId = adminId;
+        appeal.ReviewedAtUtc = DateTime.UtcNow;
+        _appeals.Update(appeal);
+
+        // If approved, promote the vehicle's tier
+        if (status == TierAppealStatus.Approved && appeal.Vehicle is not null)
+        {
+            appeal.Vehicle.Tier = appeal.RequestedTier;
+            _vehicles.Update(appeal.Vehicle);
+        }
+
+        await _uow.SaveChangesAsync(ct);
+
+        // Send Email and Push notifications to the driver (best-effort)
+        await NotifyDriverAppealDecisionAsync(appeal, status, adminNotes, ct);
+
+        return appeal.ToResponse(
+            appeal.PhotoStorageKeys?.Select((_, idx) => $"/api/v1/admin/driver-review/tier-appeals/{appeal.Id}/photos/{idx}/content").ToList()
+        );
+    }
+
+    private async Task NotifyDriverAppealDecisionAsync(
+        Domain.Entities.VehicleTierAppeal appeal,
+        TierAppealStatus status,
+        string? adminNotes,
+        CancellationToken ct)
+    {
+        var driver = appeal.Driver ?? await _drivers.GetByIdAsync(appeal.DriverId, ct);
+        if (driver is null) return;
+
+        var outcome = status == TierAppealStatus.Approved ? "Approved" : "Declined";
+        var requestedTierDisplay = char.ToUpper(appeal.RequestedTier[0]) + appeal.RequestedTier[1..];
+
+        // 1. Push Notification
+        try
+        {
+            var pushTitle = status == TierAppealStatus.Approved
+                ? $"Tier Appeal Approved! ({requestedTierDisplay})"
+                : "Tier Appeal Update";
+
+            var pushBody = status == TierAppealStatus.Approved
+                ? $"Congratulations! Your vehicle has been updated to the {requestedTierDisplay} tier."
+                : $"Your tier appeal for {requestedTierDisplay} was not approved. Check the app for details.";
+
+            await _push.NotifyUserAsync(
+                "driver",
+                driver.Id,
+                new PushMessage(
+                    pushTitle,
+                    pushBody,
+                    new Dictionary<string, string>
+                    {
+                        ["type"] = "tier_appeal_decision",
+                        ["appealId"] = appeal.Id.ToString(),
+                        ["status"] = status.ToString(),
+                    }),
+                ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send push notification for tier appeal {AppealId}", appeal.Id);
+        }
+
+        // 2. Email Notification
+        if (!string.IsNullOrWhiteSpace(driver.Email))
+        {
+            try
+            {
+                var subject = $"Mapcars — Vehicle Tier Appeal {outcome}";
+                var greeting = !string.IsNullOrWhiteSpace(driver.FullName) ? $"Hi {driver.FullName}," : "Hello,";
+                var notesText = !string.IsNullOrWhiteSpace(adminNotes)
+                    ? $"\n\nAdmin note: {adminNotes}"
+                    : string.Empty;
+
+                var body = status == TierAppealStatus.Approved
+                    ? $"{greeting}\n\nGreat news! Your appeal to upgrade your vehicle to the {requestedTierDisplay} tier has been approved by our operations team.\n\nYour vehicle is now eligible to receive {requestedTierDisplay} trip requests on the Mapcars platform.{notesText}\n\nSafe driving,\nThe Mapcars Team"
+                    : $"{greeting}\n\nYour recent appeal to change your vehicle tier to {requestedTierDisplay} has been reviewed and was not approved at this time.{notesText}\n\nIf you have any questions or have further documentation, feel free to contact support or submit a new appeal with additional details.\n\nBest regards,\nThe Mapcars Team";
+
+                await _email.SendAsync(
+                    driver.Email,
+                    subject,
+                    body,
+                    new EmailSendOptions(Category: "DriverTierAppeal", SentByAdminId: appeal.ReviewedByAdminId),
+                    ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send email notification for tier appeal {AppealId}", appeal.Id);
+            }
+        }
     }
 }

@@ -25,4 +25,7 @@ public class Vehicle : BaseEntity
 
     /// <summary>The council or authority (e.g. TfL) that issued the PHV vehicle licence.</summary>
     public string? PhvLicensingAuthority { get; set; }
+
+    /// <summary>The vehicle's assigned ride tier (e.g. economy, comfort, xl, premium). Default is economy; set/approved by admin.</summary>
+    public string Tier { get; set; } = "economy";
 }
