@@ -21,6 +21,11 @@ public class AuthController(
     public async Task<IActionResult> Login([FromBody] UnifiedLoginRequest request, CancellationToken ct)
         => Ok(await authService.LoginAsync(request, ct));
 
+    [HttpPost("google")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> Google([FromBody] UnifiedGoogleLoginRequest request, CancellationToken ct)
+        => Ok(await authService.GoogleLoginAsync(request, ct));
+
     /// <summary>
     /// Exchanges a refresh token for a fresh access token, plus a rotated refresh
     /// token that replaces the one sent. This is what keeps a signed-in user

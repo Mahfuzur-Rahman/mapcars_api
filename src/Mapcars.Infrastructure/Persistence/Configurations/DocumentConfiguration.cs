@@ -23,6 +23,9 @@ public class DocumentConfiguration : IEntityTypeConfiguration<Document>
         builder.Property(d => d.ReviewStatus).HasColumnName("review_status").HasConversion<string>().HasMaxLength(20);
         builder.Property(d => d.ReviewedAtUtc).HasColumnName("reviewed_at_utc");
         builder.Property(d => d.ExpiresOn).HasColumnName("expires_on");
+        builder.Property(d => d.IsDeletionRequested).HasColumnName("is_deletion_requested");
+        builder.Property(d => d.DeletionReason).HasColumnName("deletion_reason");
+        builder.Property(d => d.DeletionRequestedAtUtc).HasColumnName("deletion_requested_at_utc");
 
         builder.HasOne(d => d.Rider)
             .WithMany()
@@ -36,5 +39,6 @@ public class DocumentConfiguration : IEntityTypeConfiguration<Document>
 
         builder.HasIndex(d => d.RiderId);
         builder.HasIndex(d => d.DriverId);
+        builder.HasIndex(d => d.IsDeletionRequested);
     }
 }

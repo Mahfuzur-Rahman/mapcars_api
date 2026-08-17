@@ -26,4 +26,9 @@ public class Document : BaseEntity
 
     /// <summary>Renewal deadline for licence-like documents (PHV licence, insurance, vehicle registration, DBS).</summary>
     public DateOnly? ExpiresOn { get; set; }
+
+    /// <summary>Set when the driver/rider requests this document to be deleted.</summary>
+    public bool IsDeletionRequested { get; set; } = false;
+    public string? DeletionReason { get; set; }
+    public DateTime? DeletionRequestedAtUtc { get; set; }
 }

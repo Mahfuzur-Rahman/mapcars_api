@@ -40,4 +40,11 @@ public class DocumentRepository : GenericRepository<Document>, IDocumentReposito
             .OrderByDescending(d => d.CreatedAtUtc)
             .ToListAsync(ct);
     }
+
+    public async Task<IReadOnlyList<Document>> ListPendingDeletionsAsync(CancellationToken ct = default)
+        => await Set.AsNoTracking()
+            .Include(d => d.Driver)
+            .Where(d => d.IsDeletionRequested)
+            .OrderByDescending(d => d.DeletionRequestedAtUtc ?? d.CreatedAtUtc)
+            .ToListAsync(ct);
 }

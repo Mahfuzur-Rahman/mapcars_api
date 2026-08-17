@@ -7,6 +7,7 @@ using Mapcars.Application.Common.Interfaces;
 using Mapcars.Application.Drivers.Interfaces;
 using Mapcars.Application.Riders.Interfaces;
 using Mapcars.Domain.Entities;
+using Mapcars.Domain.Exceptions;
 
 namespace Mapcars.Application.Auth.Services;
 
@@ -21,7 +22,9 @@ public class UnifiedAuthService(
     IDriverRepository driverRepo,
     IPasswordHasher hasher,
     IJwtService jwt,
-    IRefreshTokenService refreshTokens) : IUnifiedAuthService
+    IRefreshTokenService refreshTokens,
+    IGoogleAuthService googleAuth,
+    IUnitOfWork uow) : IUnifiedAuthService
 {
     public async Task<UnifiedLoginResponse> LoginAsync(UnifiedLoginRequest request, CancellationToken ct = default)
     {
@@ -59,6 +62,109 @@ public class UnifiedAuthService(
         // in, and never reveal *whose* password was wrong if it happens to
         // exist (with a different password) in more than one table.
         throw new UnauthorizedException("Invalid email or password.");
+    }
+
+    public async Task<UnifiedLoginResponse> GoogleLoginAsync(UnifiedGoogleLoginRequest request, CancellationToken ct = default)
+    {
+        if (!googleAuth.IsConfigured)
+            throw new DomainException("Google sign-in isn't available yet. Please use your email or phone number.");
+
+        var info = await googleAuth.VerifyIdTokenAsync(request.IdToken, ct)
+            ?? throw new UnauthorizedException("Invalid Google token.");
+
+        var email = info.EmailVerified && !string.IsNullOrWhiteSpace(info.Email)
+            ? info.Email.ToLowerInvariant().Trim()
+            : null;
+
+        // 1. Look up rider by google_sub or verified email
+        var rider = await riderRepo.FindByGoogleSubAsync(info.Sub, ct);
+        if (rider is null && email is not null)
+        {
+            rider = await riderRepo.FindByEmailAsync(email, ct);
+            if (rider is not null)
+            {
+                rider.GoogleSub = info.Sub;
+                riderRepo.Update(rider);
+                await uow.SaveChangesAsync(ct);
+            }
+        }
+
+        // 2. Look up driver by google_sub or verified email
+        var driver = await driverRepo.FindByGoogleSubAsync(info.Sub, ct);
+        if (driver is null && email is not null)
+        {
+            driver = await driverRepo.FindByEmailAsync(email, ct);
+            if (driver is not null)
+            {
+                driver.GoogleSub = info.Sub;
+                driverRepo.Update(driver);
+                await uow.SaveChangesAsync(ct);
+            }
+        }
+
+        // 3. If both accounts exist, handle role choice
+        if (rider is not null && driver is not null)
+        {
+            return request.LoginAs switch
+            {
+                "rider" => await BuildUserResponseAsync(rider, "rider", ct),
+                "driver" => await BuildUserResponseAsync(driver, "driver", ct),
+                _ => new UnifiedLoginResponse { RequiresChoice = true, AvailableUserTypes = ["rider", "driver"] },
+            };
+        }
+
+        if (driver is not null)
+        {
+            if (request.LoginAs == "rider")
+            {
+                throw new UnauthorizedException("This Google account is registered as a Driver. Please sign in as a driver.");
+            }
+            return await BuildUserResponseAsync(driver, "driver", ct);
+        }
+
+        if (rider is not null)
+        {
+            if (request.LoginAs == "driver")
+            {
+                throw new UnauthorizedException("This Google account is registered as a Customer. Please sign in as a customer, or register a driver account.");
+            }
+            return await BuildUserResponseAsync(rider, "rider", ct);
+        }
+
+        // 4. Neither exists
+        if (!request.SignUp)
+        {
+            throw new UnauthorizedException(
+                "We couldn't find a Mapcars account for that Google account. Please sign up first.");
+        }
+
+        if (request.LoginAs == "driver")
+        {
+            var newDriver = new Driver
+            {
+                GoogleSub = info.Sub,
+                Email = email,
+                FullName = info.Name,
+                IsEmailVerified = email is not null,
+                Status = Domain.Enums.DriverStatus.PendingApproval,
+            };
+            await driverRepo.AddAsync(newDriver, ct);
+            await uow.SaveChangesAsync(ct);
+            return await BuildUserResponseAsync(newDriver, "driver", ct);
+        }
+        else
+        {
+            var newRider = new Rider
+            {
+                GoogleSub = info.Sub,
+                Email = email,
+                FullName = info.Name,
+                IsEmailVerified = email is not null,
+            };
+            await riderRepo.AddAsync(newRider, ct);
+            await uow.SaveChangesAsync(ct);
+            return await BuildUserResponseAsync(newRider, "rider", ct);
+        }
     }
 
     private async Task<UnifiedLoginResponse> BuildAdminResponseAsync(Admin admin, List<Domain.Entities.Menu> menus, CancellationToken ct)
@@ -102,7 +208,7 @@ public class UnifiedAuthService(
 
     private async Task<UnifiedLoginResponse> BuildUserResponseAsync(Driver driver, string userType, CancellationToken ct)
     {
-        if (!driver.IsEmailVerified)
+        if (!driver.IsEmailVerified && string.IsNullOrEmpty(driver.GoogleSub))
             throw new UnauthorizedException("Please verify your email before logging in.");
 
         return new UnifiedLoginResponse

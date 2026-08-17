@@ -1,4 +1,5 @@
 using Mapcars.Application.Documents.Dtos;
+using Mapcars.Application.DriverReview.Dtos;
 using Mapcars.Domain.Enums;
 
 namespace Mapcars.Application.Documents.Interfaces;
@@ -19,4 +20,10 @@ public interface IDocumentService
 
     Task<IReadOnlyList<DocumentResponse>> ListAsync(
         string userType, Guid userId, CancellationToken ct = default);
+
+    Task<FileContent?> GetContentAsync(
+        string userType, Guid userId, Guid documentId, CancellationToken ct = default);
+
+    Task<DocumentResponse> RequestDeletionAsync(
+        string userType, Guid userId, Guid documentId, string? reason, CancellationToken ct = default);
 }

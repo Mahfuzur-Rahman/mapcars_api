@@ -164,6 +164,48 @@ public class DriverReviewService : IDriverReviewService
         return document.ToResponse();
     }
 
+    public async Task<DocumentResponse> ReviewDocumentDeletionAsync(Guid documentId, string decision, Guid adminId, CancellationToken ct = default)
+    {
+        var document = await _documents.GetByIdAsync(documentId, ct)
+            ?? throw new NotFoundException("Document", documentId);
+
+        if (decision.Equals("Approved", StringComparison.OrdinalIgnoreCase))
+        {
+            _documents.Remove(document);
+            await _uow.SaveChangesAsync(ct);
+            return document.ToResponse();
+        }
+        else
+        {
+            document.IsDeletionRequested = false;
+            document.DeletionReason = null;
+            document.DeletionRequestedAtUtc = null;
+            _documents.Update(document);
+            await _uow.SaveChangesAsync(ct);
+            return document.ToResponse();
+        }
+    }
+
+    public async Task<IReadOnlyList<DriverDocumentListItem>> ListPendingDocumentDeletionsAsync(CancellationToken ct = default)
+    {
+        var docs = await _documents.ListPendingDeletionsAsync(ct);
+        return docs.Select(d => new DriverDocumentListItem(
+            d.Id,
+            d.DriverId ?? Guid.Empty,
+            d.Driver?.FullName,
+            d.Driver?.Email,
+            d.Driver?.PhoneNumber,
+            d.Driver?.Status.ToString() ?? string.Empty,
+            d.Type.ToString(),
+            d.StorageKey,
+            d.OriginalFileName,
+            d.ContentType,
+            d.ReviewStatus.ToString(),
+            d.ReviewedAtUtc,
+            d.ExpiresOn,
+            d.CreatedAtUtc)).ToList();
+    }
+
     public async Task<DriverReviewDetail> SetDriverStatusAsync(Guid driverId, DriverStatus status, CancellationToken ct = default)
     {
         var driver = await _drivers.GetByIdAsync(driverId, ct)

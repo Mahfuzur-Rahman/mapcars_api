@@ -10,4 +10,5 @@ public interface IDocumentRepository : IGenericRepository<Document>
     /// <summary>Documents belonging to any of the given drivers — one query, for admin list views.</summary>
     Task<IReadOnlyList<Document>> ListForDriversAsync(IReadOnlyCollection<Guid> driverIds, CancellationToken ct = default);
     Task<IReadOnlyList<Document>> ListAllDriverDocumentsAsync(Mapcars.Domain.Enums.DocumentReviewStatus? status = null, CancellationToken ct = default);
+    Task<IReadOnlyList<Document>> ListPendingDeletionsAsync(CancellationToken ct = default);
 }

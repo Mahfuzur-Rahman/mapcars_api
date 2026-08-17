@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Mapcars.Application.Documents.Dtos;
 using Mapcars.Application.DriverReview.Dtos;
 using Mapcars.Application.DriverReview.Interfaces;
 using Mapcars.Application.Vehicles.Dtos;
@@ -66,6 +67,24 @@ public class AdminDriverReviewController : ControllerBase
         var status = ParseReviewStatus(request.Status);
         return Ok(await _review.ReviewDocumentAsync(documentId, status, ct));
     }
+
+    /// <summary>Approve (delete) or reject a document deletion request.</summary>
+    [HttpPut("documents/{documentId:guid}/deletion-review")]
+    [ProducesResponseType(typeof(DocumentResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ReviewDocumentDeletion(
+        Guid documentId, [FromBody] ReviewDocumentDeletionRequest request, CancellationToken ct)
+    {
+        if (!TryGetAdminId(out var adminId)) return Unauthorized();
+        return Ok(await _review.ReviewDocumentDeletionAsync(documentId, request.Status, adminId, ct));
+    }
+
+    /// <summary>List all documents with pending deletion requests across the platform.</summary>
+    [HttpGet("document-deletions")]
+    [ProducesResponseType(typeof(IReadOnlyList<DriverDocumentListItem>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListPendingDeletions(CancellationToken ct)
+        => Ok(await _review.ListPendingDocumentDeletionsAsync(ct));
 
     /// <summary>Set the driver's overall status (Approved / Rejected / Suspended / PendingApproval).</summary>
     [HttpPut("drivers/{driverId:guid}/status")]

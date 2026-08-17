@@ -1,7 +1,9 @@
+using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Files;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Application.Documents.Dtos;
 using Mapcars.Application.Documents.Interfaces;
+using Mapcars.Application.DriverReview.Dtos;
 using Mapcars.Application.Documents.Mapping;
 using Mapcars.Domain.Entities;
 using Mapcars.Domain.Enums;
@@ -94,5 +96,43 @@ public class DocumentService : IDocumentService
             : await _documents.ListForDriverAsync(userId, ct);
 
         return documents.Select(d => d.ToResponse()).ToList();
+    }
+
+    public async Task<FileContent?> GetContentAsync(
+        string userType, Guid userId, Guid documentId, CancellationToken ct = default)
+    {
+        var document = await _documents.GetByIdAsync(documentId, ct);
+        if (document is null) return null;
+
+        var isOwner = (userType == "rider" && document.RiderId == userId) ||
+                      (userType == "driver" && document.DriverId == userId);
+        if (!isOwner) return null;
+
+        var stream = await _storage.OpenReadAsync(document.StorageKey, ct);
+        if (stream is null) return null;
+
+        return new FileContent(stream, document.ContentType, document.OriginalFileName);
+    }
+
+    public async Task<DocumentResponse> RequestDeletionAsync(
+        string userType, Guid userId, Guid documentId, string? reason, CancellationToken ct = default)
+    {
+        var document = await _documents.GetByIdAsync(documentId, ct);
+        if (document is null)
+            throw new NotFoundException("Document", documentId);
+
+        var isOwner = (userType == "rider" && document.RiderId == userId) ||
+                      (userType == "driver" && document.DriverId == userId);
+        if (!isOwner)
+            throw new DomainException("You do not have permission to request deletion for this document.");
+
+        document.IsDeletionRequested = true;
+        document.DeletionReason = reason;
+        document.DeletionRequestedAtUtc = DateTime.UtcNow;
+
+        _documents.Update(document);
+        await _uow.SaveChangesAsync(ct);
+
+        return document.ToResponse();
     }
 }

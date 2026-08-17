@@ -13,5 +13,8 @@ public static class DocumentMappings
         document.ReviewStatus.ToString(),
         document.CreatedAtUtc,
         document.ReviewedAtUtc,
-        document.ExpiresOn);
+        document.ExpiresOn,
+        document.IsDeletionRequested,
+        document.DeletionReason,
+        document.DeletionRequestedAtUtc);
 }

@@ -54,6 +54,38 @@ public class DocumentsController : ControllerBase
         return Ok(await _documents.ListAsync(userType, userId.Value, ct));
     }
 
+    /// <summary>Authenticated streaming of document bytes for the owner driver/rider.</summary>
+    [HttpGet("{id:guid}/content")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetContent(Guid id, CancellationToken ct)
+    {
+        var (userType, userId) = CurrentUser();
+        if (userId is null)
+            return Unauthorized();
+
+        var file = await _documents.GetContentAsync(userType, userId.Value, id, ct);
+        if (file is null)
+            return NotFound();
+
+        return File(file.Content, file.ContentType, file.FileName, enableRangeProcessing: true);
+    }
+
+    /// <summary>Driver/rider requests an uploaded document to be deleted by admin.</summary>
+    [HttpPost("{id:guid}/request-deletion")]
+    [ProducesResponseType(typeof(DocumentResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<DocumentResponse>> RequestDeletion(
+        Guid id, [FromBody] RequestDocumentDeletionRequest? request, CancellationToken ct)
+    {
+        var (userType, userId) = CurrentUser();
+        if (userId is null)
+            return Unauthorized();
+
+        var response = await _documents.RequestDeletionAsync(userType, userId.Value, id, request?.Reason, ct);
+        return Ok(response);
+    }
+
     private (string UserType, Guid? UserId) CurrentUser()
     {
         var userType = User.FindFirstValue("user_type") ?? string.Empty;

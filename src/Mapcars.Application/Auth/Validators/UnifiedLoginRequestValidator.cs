@@ -12,3 +12,11 @@ public class UnifiedLoginRequestValidator : AbstractValidator<UnifiedLoginReques
         RuleFor(x => x.Password).NotEmpty().WithMessage("Password is required.");
     }
 }
+
+public class UnifiedGoogleLoginRequestValidator : AbstractValidator<UnifiedGoogleLoginRequest>
+{
+    public UnifiedGoogleLoginRequestValidator()
+    {
+        RuleFor(x => x.IdToken).NotEmpty().WithMessage("Google ID token is required.");
+    }
+}

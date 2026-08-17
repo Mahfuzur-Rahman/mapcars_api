@@ -6,3 +6,8 @@ namespace Mapcars.Application.Auth.Dtos;
 /// set — the same email+password matched more than one account type.
 /// </summary>
 public record UnifiedLoginRequest(string Email, string Password, string? LoginAs = null);
+
+/// <summary>
+/// Google sign-in request for the unified web login endpoint.
+/// </summary>
+public record UnifiedGoogleLoginRequest(string IdToken, bool SignUp = false, string? LoginAs = null);

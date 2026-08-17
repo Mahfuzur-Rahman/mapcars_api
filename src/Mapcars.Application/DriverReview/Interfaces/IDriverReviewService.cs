@@ -16,6 +16,8 @@ public interface IDriverReviewService
     Task<FileContent?> GetDocumentContentAsync(Guid documentId, CancellationToken ct = default);
 
     Task<DocumentResponse> ReviewDocumentAsync(Guid documentId, DocumentReviewStatus status, CancellationToken ct = default);
+    Task<DocumentResponse> ReviewDocumentDeletionAsync(Guid documentId, string decision, Guid adminId, CancellationToken ct = default);
+    Task<IReadOnlyList<DriverDocumentListItem>> ListPendingDocumentDeletionsAsync(CancellationToken ct = default);
     Task<DriverReviewDetail> SetDriverStatusAsync(Guid driverId, DriverStatus status, CancellationToken ct = default);
 
     // Vehicle Tier & Appeals
