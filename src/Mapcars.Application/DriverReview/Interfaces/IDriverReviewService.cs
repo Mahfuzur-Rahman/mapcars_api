@@ -9,6 +9,7 @@ namespace Mapcars.Application.DriverReview.Interfaces;
 public interface IDriverReviewService
 {
     Task<IReadOnlyList<DriverReviewListItem>> ListDriversAsync(DriverStatus? status, CancellationToken ct = default);
+    Task<IReadOnlyList<DriverDocumentListItem>> ListAllDocumentsAsync(DocumentReviewStatus? status = null, CancellationToken ct = default);
     Task<DriverReviewDetail> GetDriverAsync(Guid driverId, CancellationToken ct = default);
 
     /// <summary>Streams a document's bytes for an admin to view. Null if the doc or its blob is missing.</summary>

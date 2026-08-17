@@ -48,3 +48,20 @@ public record SetDriverStatusRequest(string Status);
 
 /// <summary>A file streamed back to an admin for viewing.</summary>
 public record FileContent(Stream Content, string ContentType, string FileName);
+
+/// <summary>One document in the admin driver-documents review queue.</summary>
+public record DriverDocumentListItem(
+    Guid Id,
+    Guid DriverId,
+    string? DriverName,
+    string? DriverEmail,
+    string? DriverPhone,
+    string DriverStatus,
+    string Type,
+    string StorageKey,
+    string OriginalFileName,
+    string ContentType,
+    string ReviewStatus,
+    DateTime? ReviewedAtUtc,
+    DateOnly? ExpiresOn,
+    DateTime CreatedAtUtc);

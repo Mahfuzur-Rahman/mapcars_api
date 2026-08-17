@@ -29,6 +29,12 @@ public class AdminDriverReviewController : ControllerBase
     public async Task<IActionResult> ListDrivers([FromQuery] DriverStatus? status, CancellationToken ct)
         => Ok(await _review.ListDriversAsync(status, ct));
 
+    /// <summary>List all driver documents across all drivers, optionally filtered by review status.</summary>
+    [HttpGet("documents")]
+    [ProducesResponseType(typeof(IReadOnlyList<DriverDocumentListItem>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListDocuments([FromQuery] DocumentReviewStatus? status, CancellationToken ct)
+        => Ok(await _review.ListAllDocumentsAsync(status, ct));
+
     /// <summary>Full detail for one driver: profile, vehicle, and documents.</summary>
     [HttpGet("drivers/{driverId:guid}")]
     [ProducesResponseType(typeof(DriverReviewDetail), StatusCodes.Status200OK)]

@@ -88,6 +88,27 @@ public class DriverReviewService : IDriverReviewService
         }).ToList();
     }
 
+    public async Task<IReadOnlyList<DriverDocumentListItem>> ListAllDocumentsAsync(DocumentReviewStatus? status = null, CancellationToken ct = default)
+    {
+        var docs = await _documents.ListAllDriverDocumentsAsync(status, ct);
+        return docs.Select(d => new DriverDocumentListItem(
+            d.Id,
+            d.DriverId ?? Guid.Empty,
+            d.Driver?.FullName,
+            d.Driver?.Email,
+            d.Driver?.PhoneNumber,
+            d.Driver?.Status.ToString() ?? "Unknown",
+            d.Type.ToString(),
+            d.StorageKey,
+            d.OriginalFileName,
+            d.ContentType,
+            d.ReviewStatus.ToString(),
+            d.ReviewedAtUtc,
+            d.ExpiresOn,
+            d.CreatedAtUtc
+        )).ToList();
+    }
+
     public async Task<DriverReviewDetail> GetDriverAsync(Guid driverId, CancellationToken ct = default)
     {
         var driver = await _drivers.GetByIdAsync(driverId, ct)
