@@ -303,6 +303,62 @@ public class TripService : ITripService
         return trip.ToResponse(driver, rider, includePin: true);
     }
 
+    public async Task<TripResponse?> GetActiveForUserAsync(
+        string callerType, Guid callerId, CancellationToken ct = default)
+    {
+        var trip = callerType == "driver"
+            ? await _trips.GetActiveForDriverAsync(callerId, ct)
+            : await _trips.GetActiveForRiderAsync(callerId, ct);
+
+        if (trip is null) return null;
+
+        var driver = await BuildDriverInfoAsync(trip.DriverId, ct);
+        var rider = await BuildRiderInfoAsync(trip.RiderId, ct);
+        return trip.ToResponse(driver, rider, includePin: true);
+    }
+
+    public async Task<TripReceiptResponse> GetReceiptForUserAsync(
+        string callerType, Guid callerId, Guid tripId, CancellationToken ct = default)
+    {
+        var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
+
+        var isRider = callerType == "rider" && trip.RiderId == callerId;
+        var isDriver = callerType == "driver" && trip.DriverId == callerId;
+        var isAdmin = callerType == "admin" || callerType == "SuperAdmin" || callerType == "Operations" || callerType == "Support";
+        if (!isRider && !isDriver && !isAdmin) throw new NotFoundException("Trip", tripId);
+
+        var driver = await BuildDriverInfoAsync(trip.DriverId, ct);
+        var rider = await BuildRiderInfoAsync(trip.RiderId, ct);
+
+        var receiptNumber = $"MC-{trip.Id.ToString()[..8].ToUpperInvariant()}";
+        var totalAmount = (trip.FareAmount ?? 0m) + trip.TipAmount;
+
+        return new TripReceiptResponse(
+            trip.Id,
+            receiptNumber,
+            trip.Status.ToString(),
+            trip.PickupAddress,
+            trip.PickupLat,
+            trip.PickupLng,
+            trip.DropoffAddress,
+            trip.DropoffLat,
+            trip.DropoffLng,
+            trip.Tier ?? "Economy",
+            trip.DistanceMiles,
+            trip.DurationMinutes,
+            trip.FareAmount ?? 0m,
+            trip.TipAmount,
+            totalAmount,
+            trip.PaymentMethod.ToString(),
+            trip.PaymentStatus.ToString(),
+            trip.CreatedAtUtc,
+            trip.CompletedAtUtc,
+            trip.PaidAtUtc,
+            driver,
+            rider
+        );
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /// <summary>Looks up the assigned driver's public details for the rider's

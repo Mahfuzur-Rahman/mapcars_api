@@ -14,6 +14,12 @@ public interface ITripRepository : IGenericRepository<Trip>
     /// <summary>True if the driver is on a live trip (assigned / arrived / in-progress) — i.e. not free to dispatch.</summary>
     Task<bool> HasActiveTripAsync(Guid driverId, CancellationToken ct = default);
 
+    /// <summary>Fetch the single active trip for a rider, or null if none.</summary>
+    Task<Trip?> GetActiveForRiderAsync(Guid riderId, CancellationToken ct = default);
+
+    /// <summary>Fetch the single active trip for a driver, or null if none.</summary>
+    Task<Trip?> GetActiveForDriverAsync(Guid driverId, CancellationToken ct = default);
+
     /// <summary>
     /// Atomically assign a still-open trip to a driver (Requested + unassigned →
     /// DriverAssigned). Returns false if it was already taken/cancelled — the

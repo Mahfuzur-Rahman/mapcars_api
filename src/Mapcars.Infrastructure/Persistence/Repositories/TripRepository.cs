@@ -35,6 +35,25 @@ public class TripRepository : GenericRepository<Trip>, ITripRepository
                   t.Status == TripStatus.InProgress),
             ct);
 
+    public async Task<Trip?> GetActiveForRiderAsync(Guid riderId, CancellationToken ct = default)
+        => await Set.AsNoTracking()
+            .Where(t => t.RiderId == riderId &&
+                        (t.Status == TripStatus.Requested ||
+                         t.Status == TripStatus.DriverAssigned ||
+                         t.Status == TripStatus.DriverArrived ||
+                         t.Status == TripStatus.InProgress))
+            .OrderByDescending(t => t.CreatedAtUtc)
+            .FirstOrDefaultAsync(ct);
+
+    public async Task<Trip?> GetActiveForDriverAsync(Guid driverId, CancellationToken ct = default)
+        => await Set.AsNoTracking()
+            .Where(t => t.DriverId == driverId &&
+                        (t.Status == TripStatus.DriverAssigned ||
+                         t.Status == TripStatus.DriverArrived ||
+                         t.Status == TripStatus.InProgress))
+            .OrderByDescending(t => t.CreatedAtUtc)
+            .FirstOrDefaultAsync(ct);
+
     public async Task<bool> TryAssignAsync(Guid tripId, Guid driverId, CancellationToken ct = default)
     {
         // Single atomic UPDATE — only one caller can flip Requested→DriverAssigned.

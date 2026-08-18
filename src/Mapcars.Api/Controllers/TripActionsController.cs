@@ -27,6 +27,22 @@ public class TripActionsController : ControllerBase
         _locations = locations;
     }
 
+    /// <summary>
+    /// Returns the caller's currently active trip (requested, assigned, arrived, or in-progress)
+    /// with full driver/rider info and meet-up PIN, or 204 NoContent if there is none.
+    /// </summary>
+    [HttpGet("active")]
+    [ProducesResponseType(typeof(TripResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Active(CancellationToken ct)
+    {
+        var (userType, userId) = CurrentUser();
+        if (userId is null) return Unauthorized();
+
+        var trip = await _trips.GetActiveForUserAsync(userType, userId.Value, ct);
+        return trip is null ? NoContent() : Ok(trip);
+    }
+
     /// <summary>Fetch one trip — the caller must be its rider or assigned driver.</summary>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(TripResponse), StatusCodes.Status200OK)]
@@ -36,6 +52,17 @@ public class TripActionsController : ControllerBase
         var (userType, userId) = CurrentUser();
         if (userId is null) return Unauthorized();
         return Ok(await _trips.GetForUserAsync(userType, userId.Value, id, ct));
+    }
+
+    /// <summary>Fetch authoritative receipt details for a trip.</summary>
+    [HttpGet("{id:guid}/receipt")]
+    [ProducesResponseType(typeof(TripReceiptResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Receipt(Guid id, CancellationToken ct)
+    {
+        var (userType, userId) = CurrentUser();
+        if (userId is null) return Unauthorized();
+        return Ok(await _trips.GetReceiptForUserAsync(userType, userId.Value, id, ct));
     }
 
     /// <summary>
@@ -72,8 +99,8 @@ public class TripActionsController : ControllerBase
 
     private (string UserType, Guid? UserId) CurrentUser()
     {
-        var userType = User.FindFirstValue("user_type") ?? string.Empty;
-        var idStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userType = User.FindFirstValue("user_type") ?? User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+        var idStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
         return (userType, Guid.TryParse(idStr, out var id) ? id : null);
     }
 }

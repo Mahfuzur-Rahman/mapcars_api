@@ -42,4 +42,10 @@ public interface ITripService
 
     /// <summary>Fetch a single trip — only if the caller is its rider or assigned driver.</summary>
     Task<TripResponse> GetForUserAsync(string callerType, Guid callerId, Guid tripId, CancellationToken ct = default);
+
+    /// <summary>Fetch the currently active trip for the caller (rider or driver), or null if none.</summary>
+    Task<TripResponse?> GetActiveForUserAsync(string callerType, Guid callerId, CancellationToken ct = default);
+
+    /// <summary>Fetch the authoritative receipt details for a trip.</summary>
+    Task<TripReceiptResponse> GetReceiptForUserAsync(string callerType, Guid callerId, Guid tripId, CancellationToken ct = default);
 }
