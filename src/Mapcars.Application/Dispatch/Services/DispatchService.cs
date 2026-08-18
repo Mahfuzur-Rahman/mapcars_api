@@ -1,6 +1,8 @@
 using Mapcars.Application.Dispatch.Interfaces;
 using Mapcars.Application.Drivers.Interfaces;
 using Mapcars.Application.Geo.Interfaces;
+using Mapcars.Application.Notifications.Dtos;
+using Mapcars.Application.Notifications.Interfaces;
 using Mapcars.Application.Realtime.Interfaces;
 using Mapcars.Application.Trips.Interfaces;
 using Mapcars.Application.Trips.Mapping;
@@ -24,19 +26,22 @@ public class DispatchService : IDispatchService
     private readonly IVehicleRepository _vehicles;
     private readonly ITripRepository _trips;
     private readonly ITripNotifier _notifier;
+    private readonly IPushService _push;
 
     public DispatchService(
         IDriverLocationStore locations,
         IDriverRepository drivers,
         IVehicleRepository vehicles,
         ITripRepository trips,
-        ITripNotifier notifier)
+        ITripNotifier notifier,
+        IPushService push)
     {
         _locations = locations;
         _drivers = drivers;
         _vehicles = vehicles;
         _trips = trips;
         _notifier = notifier;
+        _push = push;
     }
 
     public async Task BroadcastAsync(Trip trip, CancellationToken ct = default)
@@ -55,7 +60,42 @@ public class DispatchService : IDispatchService
             var vehicle = await _vehicles.GetByDriverAsync(candidate.DriverId, ct);
             if (vehicle is not null && !IsTierCompatible(vehicle.Tier, trip.Tier)) continue;
 
+            // Two channels on purpose, and neither is redundant. The SignalR
+            // push lands the request on the board of a driver who has the app
+            // open; the FCM push is the only thing that reaches a driver whose
+            // phone is in their pocket — which is where it is between jobs, and
+            // therefore the case that matters most for a request being seen.
             await _notifier.TripAvailableAsync(candidate.DriverId, response, ct);
+            await NotifyDriverAsync(candidate.DriverId, trip, ct);
+        }
+    }
+
+    /// <summary>
+    /// Wakes one driver's phone for a new request. Best-effort by contract
+    /// (<see cref="IPushService"/> never throws for a delivery failure), but
+    /// wrapped anyway: this runs inside the booking call, and no rider's
+    /// booking may fail because one driver's device token has gone stale.
+    /// </summary>
+    private async Task NotifyDriverAsync(Guid driverId, Trip trip, CancellationToken ct)
+    {
+        try
+        {
+            var pickup = string.IsNullOrWhiteSpace(trip.PickupAddress)
+                ? "a nearby pickup"
+                : trip.PickupAddress;
+
+            await _push.NotifyUserAsync("driver", driverId, new PushMessage(
+                "New ride request",
+                $"Pickup: {pickup}",
+                new Dictionary<string, string>
+                {
+                    ["type"]   = "tripAvailable",
+                    ["tripId"] = trip.Id.ToString(),
+                }), ct);
+        }
+        catch
+        {
+            /* a push failure must never fail the booking that triggered it */
         }
     }
 
