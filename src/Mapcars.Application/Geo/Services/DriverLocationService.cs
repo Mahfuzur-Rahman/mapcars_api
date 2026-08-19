@@ -18,8 +18,16 @@ namespace Mapcars.Application.Geo.Services;
 public class DriverLocationService : IDriverLocationService
 {
     private const double DefaultRadiusMeters = 5_000;
-    private const double MaxRadiusMeters = 50_000;
-    private const int DefaultLimit = 20;
+
+    /// <summary>
+    /// Ceiling on a caller's query radius (~50 miles). The rider's map sizes
+    /// each query to what's actually on screen rather than asking for a fixed
+    /// distance, so this only ever bites on a zoomed-right-out view — it's a
+    /// bound on the work, not the product rule.
+    /// </summary>
+    private const double MaxRadiusMeters = 80_000;
+
+    private const int DefaultLimit = 50;
     private const int MaxLimit = 100;
 
     private static readonly TripStatus[] RelayableStatuses =

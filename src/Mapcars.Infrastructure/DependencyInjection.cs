@@ -19,6 +19,7 @@ using Mapcars.Application.Riders.Interfaces;
 using Mapcars.Application.SavedPlaces.Interfaces;
 using Mapcars.Application.Trips.Interfaces;
 using Mapcars.Application.Vehicles.Interfaces;
+using Mapcars.Infrastructure.Dispatch;
 using Mapcars.Infrastructure.Geo;
 using Mapcars.Infrastructure.Notifications;
 using Mapcars.Infrastructure.Options;
@@ -103,6 +104,10 @@ public static class DependencyInjection
             sp.GetService<IConnectionMultiplexer>(),
             sp.GetRequiredService<ILogger<RedisDriverLocationStore>>()));
         services.AddHostedService<GeoStalenessSweepService>();
+
+        // Widens an unaccepted request's broadcast ring as it ages (the pull
+        // side of the same rule lives in ITripService.ListAvailableNearbyAsync).
+        services.AddHostedService<DispatchEscalationService>();
 
         // Security
         services.AddScoped<IPasswordHasher, PasswordHasher>();

@@ -9,15 +9,24 @@ namespace Mapcars.Application.Dispatch.Interfaces;
 /// </summary>
 public interface IDispatchService
 {
-    /// <summary>Push a newly-booked open trip to every nearby eligible driver.</summary>
-    Task BroadcastAsync(Trip trip, CancellationToken ct = default);
+    /// <summary>
+    /// Push an open trip to every eligible driver within its current reach.
+    /// <paramref name="radiusMeters"/> defaults to <see cref="DispatchRadius"/>
+    /// for the trip's age — so booking pushes to the inner ring, and the
+    /// escalation sweeper re-pushes at the wider ones as the request ages.
+    /// </summary>
+    Task BroadcastAsync(Trip trip, double? radiusMeters = null, CancellationToken ct = default);
 
     /// <summary>
-    /// Tell every driver who could have seen this request (same nearby pool as
-    /// <see cref="BroadcastAsync"/>) that it's no longer open — call once a
-    /// trip leaves the open board (accepted, or cancelled before anyone
-    /// accepted) so it drops off other drivers' boards instead of lingering
-    /// until their next poll.
+    /// Tell every driver who could have seen this request that it's no longer
+    /// open — call once a trip leaves the open board (accepted, or cancelled
+    /// before anyone accepted) so it drops off other drivers' boards instead of
+    /// lingering until their next poll.
+    ///
+    /// Deliberately sweeps <see cref="DispatchRadius.MaxMeters"/>, not the
+    /// trip's current reach: a request that escalated outward was shown to
+    /// drivers who may since have moved, and a driver who is never told it was
+    /// taken keeps a dead card on their board that 400s when they tap it.
     /// </summary>
     Task WithdrawAsync(Trip trip, CancellationToken ct = default);
 }

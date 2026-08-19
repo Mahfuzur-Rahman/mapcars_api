@@ -16,11 +16,17 @@ public interface ITripService
     Task<IReadOnlyList<TripResponse>> ListAvailableAsync(Guid driverId, CancellationToken ct = default);
 
     /// <summary>
-    /// Open requests within <paramref name="radiusMeters"/> of a driver's point,
-    /// nearest first. Same approval gate as <see cref="ListAvailableAsync"/>.
+    /// Open requests in reach of a driver's point, nearest first. Same approval
+    /// gate as <see cref="ListAvailableAsync"/>.
+    ///
+    /// "In reach" is each request's own escalating radius (see
+    /// <c>DispatchRadius</c>), not one number for the board — a request widens
+    /// its reach the longer it goes unaccepted. <paramref name="radiusMeters"/>
+    /// is an optional extra cap for a caller that wants a narrower view; it can
+    /// only ever shrink the result, never widen it past the dispatch rule.
     /// </summary>
     Task<IReadOnlyList<TripResponse>> ListAvailableNearbyAsync(
-        Guid driverId, double lat, double lng, double radiusMeters, CancellationToken ct = default);
+        Guid driverId, double lat, double lng, double? radiusMeters = null, CancellationToken ct = default);
 
     /// <summary>
     /// Books a trip for a rider. Prices the chosen tier authoritatively from the

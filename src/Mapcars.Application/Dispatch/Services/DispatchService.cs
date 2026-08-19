@@ -18,7 +18,11 @@ namespace Mapcars.Application.Dispatch.Services;
 /// </summary>
 public class DispatchService : IDispatchService
 {
-    private const double BroadcastRadiusMeters = 10_000; // 10 km around the pickup
+    /// <summary>
+    /// Cap on how many drivers one push fans out to. Only bounds the *push* —
+    /// a driver past the cap still finds the job on their next board poll,
+    /// which applies the same <see cref="DispatchRadius"/> rule with no cap.
+    /// </summary>
     private const int MaxDrivers = 50;
 
     private readonly IDriverLocationStore _locations;
@@ -44,10 +48,11 @@ public class DispatchService : IDispatchService
         _push = push;
     }
 
-    public async Task BroadcastAsync(Trip trip, CancellationToken ct = default)
+    public async Task BroadcastAsync(Trip trip, double? radiusMeters = null, CancellationToken ct = default)
     {
+        var radius = radiusMeters ?? DispatchRadius.For(trip, DateTime.UtcNow);
         var nearby = await _locations.QueryNearbyAsync(
-            trip.PickupLat, trip.PickupLng, BroadcastRadiusMeters, MaxDrivers, ct);
+            trip.PickupLat, trip.PickupLng, radius, MaxDrivers, ct);
         if (nearby.Count == 0) return;
 
         var response = trip.ToResponse();
@@ -101,8 +106,11 @@ public class DispatchService : IDispatchService
 
     public async Task WithdrawAsync(Trip trip, CancellationToken ct = default)
     {
+        // Always the widest ring, whatever the trip had escalated to — see the
+        // interface: under-sweeping here strands a dead card on a distant
+        // driver's board.
         var nearby = await _locations.QueryNearbyAsync(
-            trip.PickupLat, trip.PickupLng, BroadcastRadiusMeters, MaxDrivers, ct);
+            trip.PickupLat, trip.PickupLng, DispatchRadius.MaxMeters, MaxDrivers, ct);
         foreach (var candidate in nearby)
             await _notifier.TripTakenAsync(candidate.DriverId, trip.Id, ct);
     }

@@ -1,5 +1,6 @@
 using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Interfaces;
+using Mapcars.Application.Dispatch;
 using Mapcars.Application.Dispatch.Interfaces;
 using Mapcars.Application.Dispatch.Services;
 using Mapcars.Application.Drivers;
@@ -86,16 +87,22 @@ public class TripService : ITripService
     }
 
     public async Task<IReadOnlyList<TripResponse>> ListAvailableNearbyAsync(
-        Guid driverId, double lat, double lng, double radiusMeters, CancellationToken ct = default)
+        Guid driverId, double lat, double lng, double? radiusMeters = null, CancellationToken ct = default)
     {
         await EnsureCanReceiveRequestsAsync(driverId, ct);
         var vehicle = await _vehicles.GetByDriverAsync(driverId, ct);
 
+        var now = DateTime.UtcNow;
         var trips = await _trips.ListAvailableAsync(ct);
         return trips
             .Where(t => vehicle is null || DispatchService.IsTierCompatible(vehicle.Tier, t.Tier))
             .Select(t => (trip: t, meters: FareCalculator.HaversineMeters(lat, lng, t.PickupLat, t.PickupLng)))
-            .Where(x => x.meters <= radiusMeters)
+            // Each request reaches as far as its own age allows — the same rule
+            // the push obeys, so a job broadcast to a distant driver survives
+            // that driver's next poll instead of being deleted off their board.
+            .Where(x => x.meters <= DispatchRadius.For(x.trip, now))
+            // An explicit query radius is only ever a *narrower* view on top.
+            .Where(x => radiusMeters is null || x.meters <= radiusMeters)
             .OrderBy(x => x.meters)
             .Select(x => x.trip.ToResponse())
             .ToList();
@@ -162,7 +169,7 @@ public class TripService : ITripService
         // a broadcast hiccup never fails the booking; drivers also poll the board).
         try
         {
-            await _dispatch.BroadcastAsync(trip, ct);
+            await _dispatch.BroadcastAsync(trip, ct: ct);
         }
         catch
         {

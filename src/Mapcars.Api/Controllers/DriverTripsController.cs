@@ -32,7 +32,11 @@ public class DriverTripsController : ControllerBase
         return Ok(await _trips.ListAvailableAsync(driverId, ct));
     }
 
-    /// <summary>Open requests near the driver (their board), nearest first.</summary>
+    /// <summary>
+    /// Open requests near the driver (their board), nearest first. How near is
+    /// per-request and widens with the request's age (see <c>DispatchRadius</c>);
+    /// <c>radiusMeters</c> is an optional narrower cap, not the board's rule.
+    /// </summary>
     [HttpGet("available/nearby")]
     [ProducesResponseType(typeof(IReadOnlyList<TripResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -43,7 +47,7 @@ public class DriverTripsController : ControllerBase
         CancellationToken ct)
     {
         if (!TryGetDriverId(out var driverId)) return Unauthorized();
-        return Ok(await _trips.ListAvailableNearbyAsync(driverId, lat, lng, radiusMeters ?? 10_000, ct));
+        return Ok(await _trips.ListAvailableNearbyAsync(driverId, lat, lng, radiusMeters, ct));
     }
 
     /// <summary>The authenticated driver's own trips.</summary>
