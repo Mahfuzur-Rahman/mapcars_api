@@ -11,7 +11,7 @@ using Mapcars.Application.Pricing.Dtos;
 using Mapcars.Application.Pricing.Interfaces;
 using Mapcars.Application.Pricing;
 using Mapcars.Application.Realtime.Interfaces;
-using Mapcars.Application.Riders.Interfaces;
+using Mapcars.Application.Customers.Interfaces;
 using Mapcars.Application.Trips.Dtos;
 using Mapcars.Application.Trips.Interfaces;
 using Mapcars.Application.Trips.Mapping;
@@ -32,7 +32,7 @@ namespace Mapcars.Application.Trips.Services;
 public class TripService : ITripService
 {
     private readonly ITripRepository _trips;
-    private readonly IRiderRepository _riders;
+    private readonly ICustomerRepository _customers;
     private readonly IDriverRepository _drivers;
     private readonly IVehicleRepository _vehicles;
     private readonly IPricingService _pricing;
@@ -43,7 +43,7 @@ public class TripService : ITripService
 
     public TripService(
         ITripRepository trips,
-        IRiderRepository riders,
+        ICustomerRepository customers,
         IDriverRepository drivers,
         IVehicleRepository vehicles,
         IPricingService pricing,
@@ -53,7 +53,7 @@ public class TripService : ITripService
         IPushService push)
     {
         _trips = trips;
-        _riders = riders;
+        _customers = customers;
         _drivers = drivers;
         _vehicles = vehicles;
         _pricing = pricing;
@@ -63,9 +63,9 @@ public class TripService : ITripService
         _push = push;
     }
 
-    public async Task<IReadOnlyList<TripResponse>> ListForRiderAsync(Guid riderId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<TripResponse>> ListForCustomerAsync(Guid customerId, CancellationToken ct = default)
     {
-        var trips = await _trips.ListForRiderAsync(riderId, ct);
+        var trips = await _trips.ListForCustomerAsync(customerId, ct);
         return trips.Select(t => t.ToResponse()).ToList();
     }
 
@@ -125,7 +125,7 @@ public class TripService : ITripService
             throw new DomainException("Go online to see trip requests.");
     }
 
-    public async Task<TripResponse> CreateAsync(Guid riderId, CreateTripRequest req, CancellationToken ct = default)
+    public async Task<TripResponse> CreateAsync(Guid customerId, CreateTripRequest req, CancellationToken ct = default)
     {
         // Authoritative price for the chosen tier (route metrics are clamped inside).
         var fare = await _pricing.PriceTierAsync(
@@ -137,7 +137,7 @@ public class TripService : ITripService
 
         var trip = new Trip
         {
-            RiderId = riderId,
+            CustomerId = customerId,
             PickupAddress = req.PickupAddress,
             PickupLat = req.PickupLat,
             PickupLng = req.PickupLng,
@@ -181,10 +181,10 @@ public class TripService : ITripService
             /* realtime broadcast is non-critical to booking */
         }
 
-        // The rider is a party to their own trip, so they get the meet-up PIN
+        // The customer is a party to their own trip, so they get the meet-up PIN
         // straight back from booking — it's on their tracking screen before a
         // driver is even assigned.
-        return trip.ToResponse(rider: await BuildRiderInfoAsync(trip.RiderId, ct), includePin: true);
+        return trip.ToResponse(customer: await BuildCustomerInfoAsync(trip.CustomerId, ct), includePin: true);
     }
 
     /// <summary>
@@ -195,13 +195,13 @@ public class TripService : ITripService
     private static string NewPin() => Random.Shared.Next(1000, 10000).ToString();
 
     public async Task<TripResponse> ExtendAsync(
-        Guid riderId, Guid tripId, CancellationToken ct = default)
+        Guid customerId, Guid tripId, CancellationToken ct = default)
     {
         var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
 
         // Same treatment as GetForUserAsync: a trip belonging to someone else is
         // "not found", never "forbidden", so this can't be used to probe ids.
-        if (trip.RiderId != riderId) throw new NotFoundException("Trip", tripId);
+        if (trip.CustomerId != customerId) throw new NotFoundException("Trip", tripId);
 
         if (trip.Status != TripStatus.Requested)
             throw new DomainException("This ride is no longer searching for a driver.");
@@ -211,7 +211,7 @@ public class TripService : ITripService
 
         // Past the grace period the sweeper has closed it, or is about to. Letting
         // an extension resurrect it would put a request back on the boards after
-        // the rider was told it was over.
+        // the customer was told it was over.
         if (TripExpiry.IsPastGrace(trip, DateTime.UtcNow))
             throw new DomainException("This search has already ended — please book again.");
 
@@ -290,9 +290,9 @@ public class TripService : ITripService
     {
         var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
 
-        var isRider = callerType == UserTypes.Customer && trip.RiderId == callerId;
+        var isCustomer = callerType == UserTypes.Customer && trip.CustomerId == callerId;
         var isDriver = callerType == "driver" && trip.DriverId == callerId;
-        if (!isRider && !isDriver)
+        if (!isCustomer && !isDriver)
             throw new NotFoundException("Trip", tripId);
 
         if (trip.Status is TripStatus.Completed or TripStatus.CancelledByRider or TripStatus.CancelledByDriver)
@@ -301,15 +301,15 @@ public class TripService : ITripService
         // No-show only makes sense for a driver who actually arrived and waited.
         var isNoShow = isDriver && request.IsNoShow && trip.Status == TripStatus.DriverArrived;
 
-        trip.Status = isRider ? TripStatus.CancelledByRider : TripStatus.CancelledByDriver;
+        trip.Status = isCustomer ? TripStatus.CancelledByRider : TripStatus.CancelledByDriver;
         trip.CancelledAtUtc = DateTime.UtcNow;
         trip.CancelledReason = request.Reason;
         trip.IsNoShow = isNoShow;
 
-        if (isRider)
+        if (isCustomer)
         {
-            var rider = await _riders.GetByIdAsync(callerId, ct);
-            if (rider is not null) rider.CancellationCount++;
+            var customer = await _customers.GetByIdAsync(callerId, ct);
+            if (customer is not null) customer.CancellationCount++;
         }
         else
         {
@@ -319,8 +319,8 @@ public class TripService : ITripService
 
         if (isNoShow)
         {
-            var rider = await _riders.GetByIdAsync(trip.RiderId, ct);
-            if (rider is not null) rider.NoShowCount++;
+            var customer = await _customers.GetByIdAsync(trip.CustomerId, ct);
+            if (customer is not null) customer.NoShowCount++;
         }
 
         await _uow.SaveChangesAsync(ct);
@@ -341,13 +341,13 @@ public class TripService : ITripService
     {
         var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
 
-        var isRider = callerType == UserTypes.Customer && trip.RiderId == callerId;
+        var isCustomer = callerType == UserTypes.Customer && trip.CustomerId == callerId;
         var isDriver = callerType == "driver" && trip.DriverId == callerId;
-        if (!isRider && !isDriver) throw new NotFoundException("Trip", tripId); // don't leak others' trips
+        if (!isCustomer && !isDriver) throw new NotFoundException("Trip", tripId); // don't leak others' trips
 
         var driver = await BuildDriverInfoAsync(trip.DriverId, ct);
-        var rider = await BuildRiderInfoAsync(trip.RiderId, ct);
-        return trip.ToResponse(driver, rider, includePin: true);
+        var customer = await BuildCustomerInfoAsync(trip.CustomerId, ct);
+        return trip.ToResponse(driver, customer, includePin: true);
     }
 
     public async Task<TripResponse?> GetActiveForUserAsync(
@@ -355,13 +355,13 @@ public class TripService : ITripService
     {
         var trip = callerType == "driver"
             ? await _trips.GetActiveForDriverAsync(callerId, ct)
-            : await _trips.GetActiveForRiderAsync(callerId, ct);
+            : await _trips.GetActiveForCustomerAsync(callerId, ct);
 
         if (trip is null) return null;
 
         var driver = await BuildDriverInfoAsync(trip.DriverId, ct);
-        var rider = await BuildRiderInfoAsync(trip.RiderId, ct);
-        return trip.ToResponse(driver, rider, includePin: true);
+        var customer = await BuildCustomerInfoAsync(trip.CustomerId, ct);
+        return trip.ToResponse(driver, customer, includePin: true);
     }
 
     public async Task<TripReceiptResponse> GetReceiptForUserAsync(
@@ -369,13 +369,13 @@ public class TripService : ITripService
     {
         var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
 
-        var isRider = callerType == UserTypes.Customer && trip.RiderId == callerId;
+        var isCustomer = callerType == UserTypes.Customer && trip.CustomerId == callerId;
         var isDriver = callerType == "driver" && trip.DriverId == callerId;
         var isAdmin = callerType == "admin" || callerType == "SuperAdmin" || callerType == "Operations" || callerType == "Support";
-        if (!isRider && !isDriver && !isAdmin) throw new NotFoundException("Trip", tripId);
+        if (!isCustomer && !isDriver && !isAdmin) throw new NotFoundException("Trip", tripId);
 
         var driver = await BuildDriverInfoAsync(trip.DriverId, ct);
-        var rider = await BuildRiderInfoAsync(trip.RiderId, ct);
+        var customer = await BuildCustomerInfoAsync(trip.CustomerId, ct);
 
         var receiptNumber = $"MC-{trip.Id.ToString()[..8].ToUpperInvariant()}";
         var totalAmount = (trip.FareAmount ?? 0m) + trip.TipAmount;
@@ -402,13 +402,13 @@ public class TripService : ITripService
             trip.CompletedAtUtc,
             trip.PaidAtUtc,
             driver,
-            rider
+            customer
         );
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /// <summary>Looks up the assigned driver's public details for the rider's
+    /// <summary>Looks up the assigned driver's public details for the customer's
     /// tracking card. Null until a driver is assigned.</summary>
     private async Task<TripDriverInfo?> BuildDriverInfoAsync(Guid? driverId, CancellationToken ct)
     {
@@ -424,14 +424,14 @@ public class TripService : ITripService
             vehicle?.RegistrationNumber);
     }
 
-    /// <summary>Looks up the rider's public details for the assigned driver's
+    /// <summary>Looks up the customer's public details for the assigned driver's
     /// pickup card — who they're collecting.</summary>
-    private async Task<TripRiderInfo?> BuildRiderInfoAsync(Guid riderId, CancellationToken ct)
+    private async Task<TripCustomerInfo?> BuildCustomerInfoAsync(Guid customerId, CancellationToken ct)
     {
-        var rider = await _riders.GetByIdAsync(riderId, ct);
-        if (rider is null) return null;
+        var customer = await _customers.GetByIdAsync(customerId, ct);
+        if (customer is null) return null;
 
-        return new TripRiderInfo(rider.FullName ?? "Your rider", rider.AverageRating);
+        return new TripCustomerInfo(customer.FullName ?? "Your customer", customer.AverageRating);
     }
 
     private async Task<Trip> GetOwnedByDriverAsync(Guid driverId, Guid tripId, CancellationToken ct)
@@ -459,12 +459,12 @@ public class TripService : ITripService
     private async Task<TripResponse> NotifiedAsync(Trip trip, CancellationToken ct)
     {
         var driver = await BuildDriverInfoAsync(trip.DriverId, ct);
-        var rider = await BuildRiderInfoAsync(trip.RiderId, ct);
+        var customer = await BuildCustomerInfoAsync(trip.CustomerId, ct);
 
-        // The trip group only ever contains this trip's rider and its assigned
+        // The trip group only ever contains this trip's customer and its assigned
         // driver (TripHub.JoinTrip enforces that), so both parties' details and
         // the PIN are safe to carry on this response.
-        var response = trip.ToResponse(driver, rider, includePin: true);
+        var response = trip.ToResponse(driver, customer, includePin: true);
         await _notifier.TripUpdatedAsync(response, ct);
 
         // Fire a push to the relevant party for lifecycle transitions that matter
@@ -483,30 +483,30 @@ public class TripService : ITripService
         switch (trip.Status)
         {
             case TripStatus.DriverAssigned:
-                await NotifyRiderAsync(trip, "Driver on the way",
+                await NotifyCustomerAsync(trip, "Driver on the way",
                     "A driver accepted your trip and is heading to you.", ct);
                 break;
             case TripStatus.DriverArrived:
-                await NotifyRiderAsync(trip, "Your driver has arrived",
+                await NotifyCustomerAsync(trip, "Your driver has arrived",
                     "Head out to meet your driver.", ct);
                 break;
             case TripStatus.Completed:
-                await NotifyRiderAsync(trip, "Trip complete",
+                await NotifyCustomerAsync(trip, "Trip complete",
                     "Thanks for riding with MAP CARS.", ct);
                 break;
             case TripStatus.CancelledByDriver:
-                await NotifyRiderAsync(trip, "Trip cancelled",
+                await NotifyCustomerAsync(trip, "Trip cancelled",
                     "Your driver cancelled the trip.", ct);
                 break;
             case TripStatus.CancelledByRider when trip.DriverId is Guid driverId:
                 await _push.NotifyUserAsync("driver", driverId,
-                    new PushMessage("Trip cancelled", "The rider cancelled the trip.", TripData(trip)), ct);
+                    new PushMessage("Trip cancelled", "The customer cancelled the trip.", TripData(trip)), ct);
                 break;
         }
     }
 
-    private Task NotifyRiderAsync(Trip trip, string title, string body, CancellationToken ct)
-        => _push.NotifyUserAsync(UserTypes.Customer, trip.RiderId, new PushMessage(title, body, TripData(trip)), ct);
+    private Task NotifyCustomerAsync(Trip trip, string title, string body, CancellationToken ct)
+        => _push.NotifyUserAsync(UserTypes.Customer, trip.CustomerId, new PushMessage(title, body, TripData(trip)), ct);
 
     private static IReadOnlyDictionary<string, string> TripData(Trip trip) => new Dictionary<string, string>
     {

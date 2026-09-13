@@ -187,7 +187,7 @@ public class DriverAuthService(
             }
             else
             {
-                // Nothing to sign in to — see the rider service: an unknown
+                // Nothing to sign in to — see the customer service: an unknown
                 // Google account on the sign-in screen is told to sign up.
                 if (!signUp)
                     throw new UnauthorizedException(
@@ -326,7 +326,7 @@ public class DriverAuthService(
 
         await uow.SaveChangesAsync(ct);
 
-        // Leaving the road also means leaving the live GEO pool, so no rider or
+        // Leaving the road also means leaving the live GEO pool, so no customer or
         // dispatch broadcast can still see this driver as available.
         if (!isOnline) await locations.RemoveAsync(driverId, ct);
 

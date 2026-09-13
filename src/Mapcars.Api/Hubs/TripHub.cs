@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.SignalR;
 namespace Mapcars.Api.Hubs;
 
 /// <summary>
-/// Realtime channel for a live trip. A client (rider or driver) connects with its
+/// Realtime channel for a live trip. A client (customer or driver) connects with its
 /// JWT (passed as the <c>access_token</c> query param — see Program.cs) and calls
 /// <see cref="JoinTrip"/> to subscribe to a trip's per-trip group; the server then
 /// pushes <c>tripUpdated</c> (and, later, driver-location) events to that group.
@@ -37,7 +37,7 @@ public class TripHub : Hub
     }
 
     /// <summary>
-    /// Subscribes to a trip's group — only if the caller is that trip's rider
+    /// Subscribes to a trip's group — only if the caller is that trip's customer
     /// or its assigned driver (silently refuses otherwise, same as a 404 would
     /// on the REST side: don't confirm the trip even exists to a non-party).
     /// </summary>
@@ -55,7 +55,7 @@ public class TripHub : Hub
         }
         catch (NotFoundException)
         {
-            return; // not this trip's rider or driver
+            return; // not this trip's customer or driver
         }
 
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupFor(tripId));

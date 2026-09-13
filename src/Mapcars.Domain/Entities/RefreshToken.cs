@@ -20,11 +20,11 @@ namespace Mapcars.Domain.Entities;
 /// </summary>
 public class RefreshToken : BaseEntity
 {
-    /// <summary>Rider, driver or admin id. Scoped by <see cref="UserType"/>,
+    /// <summary>Customer, driver or admin id. Scoped by <see cref="UserType"/>,
     /// since those ids live in separate tables and could collide.</summary>
     public Guid UserId { get; set; }
 
-    /// <summary>"rider" | "driver" | "admin".</summary>
+    /// <summary>"customer" | "driver" | "admin".</summary>
     public required string UserType { get; set; }
 
     /// <summary>SHA-256 of the token, hex-encoded.</summary>

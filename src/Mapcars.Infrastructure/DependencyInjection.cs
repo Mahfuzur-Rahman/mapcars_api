@@ -15,7 +15,7 @@ using Mapcars.Application.Posters.Interfaces;
 using Mapcars.Application.Pricing.Interfaces;
 using Mapcars.Application.Ratings.Interfaces;
 using Mapcars.Application.Messages.Interfaces;
-using Mapcars.Application.Riders.Interfaces;
+using Mapcars.Application.Customers.Interfaces;
 using Mapcars.Application.SavedPlaces.Interfaces;
 using Mapcars.Application.Trips.Interfaces;
 using Mapcars.Application.Vehicles.Interfaces;
@@ -59,7 +59,7 @@ public static class DependencyInjection
 
         // Repositories
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
-        services.AddScoped<IRiderRepository, RiderRepository>();
+        services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<IDriverRepository, DriverRepository>();
         services.AddScoped<IAdminRepository, AdminRepository>();
         services.AddScoped<IAdminReportingRepository, AdminReportingRepository>();
@@ -107,7 +107,7 @@ public static class DependencyInjection
 
         // Widens an unaccepted request's broadcast ring as it ages (the pull
         // side of the same rule lives in ITripService.ListAvailableNearbyAsync),
-        // then prompts the rider and closes the trip when its search window runs
+        // then prompts the customer and closes the trip when its search window runs
         // out. Notification only — expiry is enforced by the board queries and
         // the atomic accept, not by this timer.
         services.AddHostedService<DispatchLifecycleService>();

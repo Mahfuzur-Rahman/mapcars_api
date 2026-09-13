@@ -5,7 +5,7 @@ using Mapcars.Application.Auth.Interfaces;
 using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Application.Drivers.Interfaces;
-using Mapcars.Application.Riders.Interfaces;
+using Mapcars.Application.Customers.Interfaces;
 using Mapcars.Domain.Constants;
 using Mapcars.Domain.Entities;
 
@@ -18,7 +18,7 @@ namespace Mapcars.Application.Auth.Services;
 public class RefreshTokenService : IRefreshTokenService
 {
     private readonly IRefreshTokenRepository _tokens;
-    private readonly IRiderRepository _riders;
+    private readonly ICustomerRepository _customers;
     private readonly IDriverRepository _drivers;
     private readonly IAdminRepository _admins;
     private readonly IJwtService _jwt;
@@ -26,14 +26,14 @@ public class RefreshTokenService : IRefreshTokenService
 
     public RefreshTokenService(
         IRefreshTokenRepository tokens,
-        IRiderRepository riders,
+        ICustomerRepository customers,
         IDriverRepository drivers,
         IAdminRepository admins,
         IJwtService jwt,
         IUnitOfWork uow)
     {
         _tokens = tokens;
-        _riders = riders;
+        _customers = customers;
         _drivers = drivers;
         _admins = admins;
         _jwt = jwt;
@@ -152,9 +152,9 @@ public class RefreshTokenService : IRefreshTokenService
         // renewal emits the new value and only in-flight access tokens carry the old.
         if (UserTypes.IsCustomer(userType))
         {
-            var rider = await _riders.GetByIdAsync(userId, ct)
+            var customer = await _customers.GetByIdAsync(userId, ct)
                 ?? throw new UnauthorizedException("This account is no longer available.");
-            return _jwt.GenerateUserToken(rider.Id, rider.Email ?? rider.PhoneNumber, UserTypes.Customer);
+            return _jwt.GenerateUserToken(customer.Id, customer.Email ?? customer.PhoneNumber, UserTypes.Customer);
         }
 
         if (UserTypes.IsDriver(userType))

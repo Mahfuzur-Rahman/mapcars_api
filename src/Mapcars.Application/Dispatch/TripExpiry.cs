@@ -4,13 +4,13 @@ using Mapcars.Domain.Enums;
 namespace Mapcars.Application.Dispatch;
 
 /// <summary>
-/// How long an open request stays live, and how long the rider gets to keep it
+/// How long an open request stays live, and how long the customer gets to keep it
 /// alive once it lapses.
 ///
 /// A request used to have no deadline at all: <see cref="DispatchRadius"/>
 /// widened the ring to its maximum at two minutes and then stopped, leaving the
-/// trip <see cref="TripStatus.Requested"/> until the rider gave up by hand. On a
-/// quiet night that is a rider watching a spinner forever, and a stale card on a
+/// trip <see cref="TripStatus.Requested"/> until the customer gave up by hand. On a
+/// quiet night that is a customer watching a spinner forever, and a stale card on a
 /// driver's board for as long as the process lives.
 ///
 /// The window is deliberately a minute longer than the radius escalation, so
@@ -31,14 +31,14 @@ public static class TripExpiry
     public static readonly TimeSpan Window = TimeSpan.FromMinutes(3);
 
     /// <summary>
-    /// How long a lapsed request waits for the rider before it is written off.
+    /// How long a lapsed request waits for the customer before it is written off.
     /// Long enough to notice a push and answer; short enough not to be its own
     /// version of hanging forever.
     /// </summary>
     public static readonly TimeSpan Grace = TimeSpan.FromMinutes(1);
 
     /// <summary>
-    /// How many times a rider may extend. Caps the whole search at
+    /// How many times a customer may extend. Caps the whole search at
     /// <see cref="Window"/> × (1 + this) plus <see cref="Grace"/> — nine minutes
     /// of searching, ten before the trip is certainly closed. A product guess,
     /// not a technical limit.
@@ -50,7 +50,7 @@ public static class TripExpiry
 
     /// <summary>
     /// The deadline after an extension — measured from the tap, not from the
-    /// deadline that just passed, so a rider who answers at 3:40 gets a whole
+    /// deadline that just passed, so a customer who answers at 3:40 gets a whole
     /// window rather than the twenty seconds left of the old one.
     /// </summary>
     public static DateTime ExtendedDeadline(DateTime nowUtc) => nowUtc + Window;
@@ -67,7 +67,7 @@ public static class TripExpiry
         trip.Status == TripStatus.Requested && trip.ExpiresAtUtc + Grace <= nowUtc;
 
     /// <summary>
-    /// Whether the rider can still extend: the trip is open, has extensions
+    /// Whether the customer can still extend: the trip is open, has extensions
     /// left, and hasn't run out its grace. Computed here so the server owns the
     /// rule and clients only render the answer.
     /// </summary>

@@ -39,7 +39,7 @@ public class DeviceTokenRepository(AppDbContext db) : IDeviceTokenRepository
 
     /// <summary>
     /// Tokens for one user, accepting either passenger spelling for the length of
-    /// the Rider -> Customer rename.
+    /// the Customer -> Customer rename.
     ///
     /// <para>
     /// The tolerance matters more here than almost anywhere else, because this

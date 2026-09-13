@@ -5,5 +5,5 @@ namespace Mapcars.Application.SavedPlaces.Interfaces;
 
 public interface ISavedPlaceRepository : IGenericRepository<SavedPlace>
 {
-    Task<IReadOnlyList<SavedPlace>> ListForRiderAsync(Guid riderId, CancellationToken ct = default);
+    Task<IReadOnlyList<SavedPlace>> ListForCustomerAsync(Guid customerId, CancellationToken ct = default);
 }

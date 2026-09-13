@@ -7,7 +7,7 @@ namespace Mapcars.Api.Controllers;
 
 /// <summary>
 /// The fare chart — the pricing config every client reads to compute an instant
-/// local estimate. Reading is public (prices are shown to riders anyway); editing
+/// local estimate. Reading is public (prices are shown to customers anyway); editing
 /// is SuperAdmin-only and publishes a new version (Postgres + Redis + invalidation).
 /// </summary>
 [ApiController]

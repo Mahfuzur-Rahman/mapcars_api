@@ -14,7 +14,7 @@ public class AppDbContext : DbContext, IUnitOfWork
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
-    public DbSet<Rider> Riders => Set<Rider>();
+    public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Driver> Drivers => Set<Driver>();
     public DbSet<Trip> Trips => Set<Trip>();
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
@@ -45,7 +45,7 @@ public class AppDbContext : DbContext, IUnitOfWork
     public DbSet<RoleMenu> RoleMenus => Set<RoleMenu>();
     public DbSet<AdminMenuPermission> AdminMenuPermissions => Set<AdminMenuPermission>();
 
-    // Rider/Driver auth (database-first — tables altered via database/002_rider_driver_auth.sql)
+    // Customer/Driver auth (database-first — tables altered via database/002_rider_driver_auth.sql)
     public DbSet<VerificationCode> VerificationCodes => Set<VerificationCode>();
 
     // Long-lived refresh tokens — what keeps a signed-in user signed in

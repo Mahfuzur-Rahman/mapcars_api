@@ -20,7 +20,7 @@ namespace Mapcars.Infrastructure.Dispatch;
 /// <list type="number">
 /// <item><b>Escalate</b> — push a still-live request out to the wider ring as it
 /// ages, per <see cref="DispatchRadius"/>.</item>
-/// <item><b>Expire</b> — prompt the rider once its window closes, and close the
+/// <item><b>Expire</b> — prompt the customer once its window closes, and close the
 /// trip when the grace period runs out, per <see cref="TripExpiry"/>.</item>
 /// </list>
 ///
@@ -38,7 +38,7 @@ namespace Mapcars.Infrastructure.Dispatch;
 /// push for that trip, so a request costs at most three broadcasts in its life
 /// rather than one per tick. The bookkeeping is in memory and deliberately
 /// disposable: after a restart the tables are empty, the next tick re-broadcasts
-/// each open trip once at its current radius and re-prompts any paused rider, and
+/// each open trip once at its current radius and re-prompts any paused customer, and
 /// both clients de-duplicate (the board ignores a trip it already holds, and
 /// <c>RequestAlerts</c> dedupes the buzz by trip id) — so the cost of forgetting is
 /// a redundant push, not a double alert.
@@ -55,7 +55,7 @@ public sealed class DispatchLifecycleService : BackgroundService
     private readonly Dictionary<Guid, double> _lastRadius = new();
 
     /// <summary>
-    /// Trip id → the deadline we last prompted the rider about. Keyed by deadline
+    /// Trip id → the deadline we last prompted the customer about. Keyed by deadline
     /// rather than by a bare "prompted" flag so an extended trip is prompted again
     /// when its *new* window lapses, instead of falling silent for the rest of its life.
     /// </summary>
@@ -117,7 +117,7 @@ public sealed class DispatchLifecycleService : BackgroundService
     /// (accepted, cancelled, already expired) — otherwise these tables are a slow
     /// leak for the life of the process. Trips still inside their grace period are
     /// kept: an extension brings them straight back, and forgetting one would earn
-    /// the rider a duplicate push twenty seconds later.
+    /// the customer a duplicate push twenty seconds later.
     /// </summary>
     private void Forget(IReadOnlyList<Trip> live, IReadOnlyList<Trip> lapsed)
     {
@@ -174,7 +174,7 @@ public sealed class DispatchLifecycleService : BackgroundService
     }
 
     /// <summary>
-    /// The window closed but the rider still has time to say "keep looking".
+    /// The window closed but the customer still has time to say "keep looking".
     /// Pull the request off the boards and ask them — once per window.
     /// </summary>
     private async Task PromptAsync(
@@ -199,10 +199,10 @@ public sealed class DispatchLifecycleService : BackgroundService
             () => notifier.TripExpiringAsync(trip.ToResponse(), ct),
             "push tripExpiring for trip {TripId}", trip.Id);
 
-        // The one that actually matters: a rider whose app is in their pocket is
-        // exactly the rider who otherwise loses the ride without being asked.
+        // The one that actually matters: a customer whose app is in their pocket is
+        // exactly the customer who otherwise loses the ride without being asked.
         await SafelyAsync(
-            () => push.NotifyUserAsync(UserTypes.Customer, trip.RiderId, new PushMessage(
+            () => push.NotifyUserAsync(UserTypes.Customer, trip.CustomerId, new PushMessage(
                 "Still looking for a driver",
                 "Nobody has taken your ride yet. Tap to keep searching.",
                 new Dictionary<string, string>
@@ -213,11 +213,11 @@ public sealed class DispatchLifecycleService : BackgroundService
             "push tripExpiring notification for trip {TripId}", trip.Id);
 
         _log.LogInformation(
-            "Trip {TripId} lapsed after extension {Count} — rider prompted.",
+            "Trip {TripId} lapsed after extension {Count} — customer prompted.",
             trip.Id, trip.ExtensionCount);
     }
 
-    /// <summary>Grace is up: close the trip and tell the rider it's over.</summary>
+    /// <summary>Grace is up: close the trip and tell the customer it's over.</summary>
     private async Task CloseAsync(
         Trip trip,
         ITripRepository trips,
@@ -249,11 +249,11 @@ public sealed class DispatchLifecycleService : BackgroundService
         await SafelyAsync(
             // No "tap to…" here. Neither app routes an FCM payload anywhere yet
             // (push_service only registers the token), so tapping just resumes
-            // wherever the app was. That happens to land a backgrounded rider on
+            // wherever the app was. That happens to land a backgrounded customer on
             // the prompt above, which is why the pause copy can say it — but
             // this one fires after the trip is closed, when there is nothing
             // left on that screen to tap.
-            () => push.NotifyUserAsync(UserTypes.Customer, trip.RiderId, new PushMessage(
+            () => push.NotifyUserAsync(UserTypes.Customer, trip.CustomerId, new PushMessage(
                 "No drivers found",
                 "We couldn't find a driver for your ride. Book again when you're ready.",
                 new Dictionary<string, string>
@@ -269,7 +269,7 @@ public sealed class DispatchLifecycleService : BackgroundService
     }
 
     /// <summary>
-    /// Run a best-effort notification. One rider's dead device token or a SignalR
+    /// Run a best-effort notification. One customer's dead device token or a SignalR
     /// hiccup must not abandon the rest of the sweep — the trips after this one in
     /// the list still need closing.
     /// </summary>

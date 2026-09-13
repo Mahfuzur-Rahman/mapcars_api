@@ -78,7 +78,7 @@ public class DispatchService : IDispatchService
     /// <summary>
     /// Wakes one driver's phone for a new request. Best-effort by contract
     /// (<see cref="IPushService"/> never throws for a delivery failure), but
-    /// wrapped anyway: this runs inside the booking call, and no rider's
+    /// wrapped anyway: this runs inside the booking call, and no customer's
     /// booking may fail because one driver's device token has gone stale.
     /// </summary>
     private async Task NotifyDriverAsync(Guid driverId, Trip trip, CancellationToken ct)

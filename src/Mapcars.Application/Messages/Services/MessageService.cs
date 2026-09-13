@@ -13,7 +13,7 @@ using Mapcars.Domain.Entities;
 namespace Mapcars.Application.Messages.Services;
 
 /// <summary>
-/// Business logic for in-trip chat messages. Either the rider or the driver on
+/// Business logic for in-trip chat messages. Either the customer or the driver on
 /// an active trip may send and list messages. No trip-status restriction beyond
 /// "the caller is a participant" — chat is available from assignment through
 /// completion.
@@ -60,7 +60,7 @@ public class MessageService : IMessageService
         _ = _notifier.MessageReceivedAsync(tripId, response, ct);
 
         // SignalR only reaches a client with the app open and the socket up. A
-        // rider whose phone is in their pocket, or a driver between jobs, sees
+        // customer whose phone is in their pocket, or a driver between jobs, sees
         // nothing at all — so the message also goes out as a push, to the other
         // party only. Best-effort, like the realtime one: chat must not fail
         // because a notification could not be delivered.
@@ -97,16 +97,16 @@ public class MessageService : IMessageService
     /// </remarks>
     private void NotifyCounterpartAsync(Trip trip, string senderType, string content, CancellationToken ct)
     {
-        var isFromRider = senderType == UserTypes.Customer;
-        var recipientType = isFromRider ? UserTypes.Driver : UserTypes.Customer;
-        var recipientId = isFromRider ? trip.DriverId : trip.RiderId;
+        var isFromCustomer = senderType == UserTypes.Customer;
+        var recipientType = isFromCustomer ? UserTypes.Driver : UserTypes.Customer;
+        var recipientId = isFromCustomer ? trip.DriverId : trip.CustomerId;
         if (recipientId is null || recipientId == Guid.Empty) return;
 
         _ = _push.NotifyUserAsync(
             recipientType,
             recipientId.Value,
             new PushMessage(
-                isFromRider ? "Message from your passenger" : "Message from your driver",
+                isFromCustomer ? "Message from your passenger" : "Message from your driver",
                 content,
                 new Dictionary<string, string>
                 {
@@ -120,7 +120,7 @@ public class MessageService : IMessageService
     {
         var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
 
-        var isParticipant = (callerType == UserTypes.Customer && trip.RiderId == callerId)
+        var isParticipant = (callerType == UserTypes.Customer && trip.CustomerId == callerId)
             || (callerType == "driver" && trip.DriverId == callerId);
         if (!isParticipant)
             throw new NotFoundException("Trip", tripId);

@@ -14,13 +14,13 @@ namespace Mapcars.Application.Documents.Services;
 
 /// <summary>
 /// Business logic for documents. Which DocumentType values are valid depends
-/// on the uploader's role (rider identity docs vs. driver licensing docs) —
+/// on the uploader's role (customer identity docs vs. driver licensing docs) —
 /// that mapping is a business rule, so it's enforced here rather than at the
 /// request-shape validation layer.
 /// </summary>
 public class DocumentService : IDocumentService
 {
-    private static readonly HashSet<DocumentType> RiderTypes =
+    private static readonly HashSet<DocumentType> CustomerTypes =
         [DocumentType.ProofOfIdentity, DocumentType.ProofOfAddress];
 
     private static readonly HashSet<DocumentType> DriverTypes =
@@ -60,7 +60,7 @@ public class DocumentService : IDocumentService
         DateOnly? expiresOn = null,
         CancellationToken ct = default)
     {
-        var allowedTypes = userType == UserTypes.Customer ? RiderTypes : DriverTypes;
+        var allowedTypes = userType == UserTypes.Customer ? CustomerTypes : DriverTypes;
         if (!allowedTypes.Contains(type))
             throw new DomainException($"Document type '{type}' is not valid for a {userType}.");
 
@@ -74,7 +74,7 @@ public class DocumentService : IDocumentService
 
         var document = new Document
         {
-            RiderId = userType == UserTypes.Customer ? userId : null,
+            CustomerId = userType == UserTypes.Customer ? userId : null,
             DriverId = userType == "driver" ? userId : null,
             Type = type,
             StorageKey = storageKey,
@@ -93,7 +93,7 @@ public class DocumentService : IDocumentService
         string userType, Guid userId, CancellationToken ct = default)
     {
         var documents = userType == UserTypes.Customer
-            ? await _documents.ListForRiderAsync(userId, ct)
+            ? await _documents.ListForCustomerAsync(userId, ct)
             : await _documents.ListForDriverAsync(userId, ct);
 
         return documents.Select(d => d.ToResponse()).ToList();
@@ -105,7 +105,7 @@ public class DocumentService : IDocumentService
         var document = await _documents.GetByIdAsync(documentId, ct);
         if (document is null) return null;
 
-        var isOwner = (userType == UserTypes.Customer && document.RiderId == userId) ||
+        var isOwner = (userType == UserTypes.Customer && document.CustomerId == userId) ||
                       (userType == "driver" && document.DriverId == userId);
         if (!isOwner) return null;
 
@@ -122,7 +122,7 @@ public class DocumentService : IDocumentService
         if (document is null)
             throw new NotFoundException("Document", documentId);
 
-        var isOwner = (userType == UserTypes.Customer && document.RiderId == userId) ||
+        var isOwner = (userType == UserTypes.Customer && document.CustomerId == userId) ||
                       (userType == "driver" && document.DriverId == userId);
         if (!isOwner)
             throw new DomainException("You do not have permission to request deletion for this document.");

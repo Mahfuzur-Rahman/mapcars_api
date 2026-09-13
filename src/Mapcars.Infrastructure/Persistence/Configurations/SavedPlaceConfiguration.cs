@@ -12,19 +12,19 @@ public class SavedPlaceConfiguration : IEntityTypeConfiguration<SavedPlace>
         b.HasKey(p => p.Id);
 
         // snake_case descriptive columns, PascalCase base columns — see database/012_saved_places.sql.
-        b.Property(p => p.RiderId).HasColumnName("rider_id");
+        b.Property(p => p.CustomerId).HasColumnName("rider_id");
         b.Property(p => p.Label).HasColumnName("label").IsRequired().HasMaxLength(40);
         b.Property(p => p.Address).HasColumnName("address").IsRequired().HasMaxLength(500);
         b.Property(p => p.Lat).HasColumnName("lat");
         b.Property(p => p.Lng).HasColumnName("lng");
 
-        b.HasOne(p => p.Rider)
+        b.HasOne(p => p.Customer)
             .WithMany(r => r.SavedPlaces)
-            .HasForeignKey(p => p.RiderId)
+            .HasForeignKey(p => p.CustomerId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Many places per rider, but not two with the same label.
-        b.HasIndex(p => p.RiderId);
-        b.HasIndex(p => new { p.RiderId, p.Label }).IsUnique();
+        // Many places per customer, but not two with the same label.
+        b.HasIndex(p => p.CustomerId);
+        b.HasIndex(p => new { p.CustomerId, p.Label }).IsUnique();
     }
 }

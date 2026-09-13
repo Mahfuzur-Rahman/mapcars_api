@@ -20,7 +20,7 @@ public class RefreshResponse
     /// <summary>The rotated successor. Store it; the token you sent is now dead.</summary>
     public string RefreshToken { get; set; } = string.Empty;
 
-    /// <summary>"rider" | "driver" | "admin" — lets a client confirm the session
+    /// <summary>"customer" | "driver" | "admin" — lets a client confirm the session
     /// it restored is the role it expects.</summary>
     public string UserType { get; set; } = string.Empty;
 

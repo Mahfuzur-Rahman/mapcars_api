@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Mapcars.Infrastructure.Persistence.Configurations;
 
-public class RiderConfiguration : IEntityTypeConfiguration<Rider>
+public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
 {
-    public void Configure(EntityTypeBuilder<Rider> b)
+    public void Configure(EntityTypeBuilder<Customer> b)
     {
         b.ToTable("riders");
         b.HasKey(r => r.Id);

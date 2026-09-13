@@ -1,6 +1,6 @@
-namespace Mapcars.Application.Riders.Dtos;
+namespace Mapcars.Application.Customers.Dtos;
 
-// Request shapes for the rider auth endpoints. Kept in the Application layer
+// Request shapes for the customer auth endpoints. Kept in the Application layer
 // (not the controller) so validators can target them and the API contract
 // lives in one predictable place.
 
@@ -11,7 +11,7 @@ public record ResendEmailRequest(string Email);
 public record VerifyEmailRequest(string Email, string Code);
 public record EmailLoginRequest(string Email, string Password);
 /// <summary>
-/// Google sign-in. <paramref name="SignUp"/> says which screen the rider came
+/// Google sign-in. <paramref name="SignUp"/> says which screen the customer came
 /// from: <c>true</c> from "Sign up with Google" (an account may be created),
 /// <c>false</c> (the default) from "Continue with Google" on the sign-in page —
 /// where an unknown Google account is told to sign up rather than silently

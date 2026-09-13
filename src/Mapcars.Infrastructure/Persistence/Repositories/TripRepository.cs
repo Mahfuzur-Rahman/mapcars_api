@@ -9,9 +9,9 @@ public class TripRepository : GenericRepository<Trip>, ITripRepository
 {
     public TripRepository(AppDbContext context) : base(context) { }
 
-    public async Task<IReadOnlyList<Trip>> ListForRiderAsync(Guid riderId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Trip>> ListForCustomerAsync(Guid customerId, CancellationToken ct = default)
         => await Set.AsNoTracking()
-            .Where(t => t.RiderId == riderId)
+            .Where(t => t.CustomerId == customerId)
             .OrderByDescending(t => t.CreatedAtUtc)
             .ToListAsync(ct);
 
@@ -72,9 +72,9 @@ public class TripRepository : GenericRepository<Trip>, ITripRepository
                   t.Status == TripStatus.InProgress),
             ct);
 
-    public async Task<Trip?> GetActiveForRiderAsync(Guid riderId, CancellationToken ct = default)
+    public async Task<Trip?> GetActiveForCustomerAsync(Guid customerId, CancellationToken ct = default)
         => await Set.AsNoTracking()
-            .Where(t => t.RiderId == riderId &&
+            .Where(t => t.CustomerId == customerId &&
                         (t.Status == TripStatus.Requested ||
                          t.Status == TripStatus.DriverAssigned ||
                          t.Status == TripStatus.DriverArrived ||

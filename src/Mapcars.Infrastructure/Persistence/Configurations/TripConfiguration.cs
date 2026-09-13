@@ -31,12 +31,21 @@ public class TripConfiguration : IEntityTypeConfiguration<Trip>
 
         // Lifecycle/cancellation — new PascalCase columns, matching this table's
         // existing convention (even later additions like the pricing snapshot
-        // above stayed PascalCase, unlike riders/drivers).
+        // above stayed PascalCase, unlike customers/drivers).
         builder.Property(t => t.CancelledReason).HasMaxLength(500);
 
-        builder.HasOne(t => t.Rider)
+        // The ONLY mapping in this file EF was deriving by convention, and the one
+        // that made the C# rename and the database rename inseparable: with
+        // Trip.RiderId the convention produced "RiderId" by accident, so renaming
+        // the property silently retargeted EF at a "CustomerId" column that does
+        // not exist until 031. It compiles and then fails on every trip query.
+        // Pinned explicitly so the two can never drift again; the literal flips to
+        // "CustomerId" in the same commit as the migration.
+        builder.Property(t => t.CustomerId).HasColumnName("RiderId");
+
+        builder.HasOne(t => t.Customer)
             .WithMany(r => r.Trips)
-            .HasForeignKey(t => t.RiderId)
+            .HasForeignKey(t => t.CustomerId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(t => t.Driver)

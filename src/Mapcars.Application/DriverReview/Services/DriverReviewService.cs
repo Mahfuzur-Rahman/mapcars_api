@@ -211,7 +211,7 @@ public class DriverReviewService : IDriverReviewService
         var driver = await _drivers.GetByIdAsync(driverId, ct)
             ?? throw new NotFoundException("Driver", driverId);
 
-        // A profile picture is how riders and other drivers recognise who's
+        // A profile picture is how customers and other drivers recognise who's
         // arriving — no admin click can skip it, even by mistake.
         if (status == DriverStatus.Approved && driver.ProfilePictureKey is null)
             throw new DomainException("This driver must upload a profile picture before they can be approved.");

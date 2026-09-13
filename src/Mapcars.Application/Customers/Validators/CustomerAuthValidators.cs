@@ -1,8 +1,8 @@
 using FluentValidation;
 using Mapcars.Application.Common.Validation;
-using Mapcars.Application.Riders.Dtos;
+using Mapcars.Application.Customers.Dtos;
 
-namespace Mapcars.Application.Riders.Validators;
+namespace Mapcars.Application.Customers.Validators;
 
 public class PhoneRequestValidator : AbstractValidator<PhoneRequest>
 {

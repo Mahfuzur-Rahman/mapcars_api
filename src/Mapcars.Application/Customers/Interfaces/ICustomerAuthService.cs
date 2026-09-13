@@ -1,11 +1,11 @@
 using Mapcars.Application.Common.Dtos;
-using Mapcars.Application.Riders.Dtos;
+using Mapcars.Application.Customers.Dtos;
 
-namespace Mapcars.Application.Riders.Interfaces;
+namespace Mapcars.Application.Customers.Interfaces;
 
-public interface IRiderAuthService
+public interface ICustomerAuthService
 {
-    Task ChangePasswordAsync(Guid riderId, ChangePasswordRequest request, CancellationToken ct = default);
+    Task ChangePasswordAsync(Guid customerId, ChangePasswordRequest request, CancellationToken ct = default);
 
     // Phone flow
     Task<OtpSentResponse> SendPhoneOtpAsync(string phone, CancellationToken ct = default);
@@ -26,10 +26,10 @@ public interface IRiderAuthService
     Task<AuthResponse> SignInWithGoogleAsync(string idToken, bool signUp = false, CancellationToken ct = default);
 
     // Profile
-    Task<RiderProfileResponse> GetProfileAsync(Guid riderId, CancellationToken ct = default);
-    Task<RiderProfileResponse> UpdateProfileAsync(Guid riderId, UpdateProfileRequest request, CancellationToken ct = default);
+    Task<CustomerProfileResponse> GetProfileAsync(Guid customerId, CancellationToken ct = default);
+    Task<CustomerProfileResponse> UpdateProfileAsync(Guid customerId, UpdateProfileRequest request, CancellationToken ct = default);
 
-    Task<RiderProfileResponse> UploadProfilePictureAsync(
-        Guid riderId, Stream content, string fileName, string contentType, long fileSize, CancellationToken ct = default);
-    Task<(Stream Content, string ContentType)?> GetProfilePictureAsync(Guid riderId, CancellationToken ct = default);
+    Task<CustomerProfileResponse> UploadProfilePictureAsync(
+        Guid customerId, Stream content, string fileName, string contentType, long fileSize, CancellationToken ct = default);
+    Task<(Stream Content, string ContentType)?> GetProfilePictureAsync(Guid customerId, CancellationToken ct = default);
 }

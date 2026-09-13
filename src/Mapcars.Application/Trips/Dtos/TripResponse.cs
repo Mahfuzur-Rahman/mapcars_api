@@ -32,7 +32,7 @@ public record TripResponse(
     string? CancelledReason,
     bool IsNoShow,
     TripDriverInfo? Driver,
-    TripRiderInfo? Rider = null,
+    TripCustomerInfo? Customer = null,
     string? Pin = null,
 
     /// <summary>
@@ -44,18 +44,24 @@ public record TripResponse(
     /// </summary>
     DateTime? ExpiresAtUtc = null,
 
-    /// <summary>How many times the rider has already extended the search.</summary>
+    /// <summary>How many times the customer has already extended the search.</summary>
     int ExtensionCount = 0,
 
     /// <summary>
-    /// Whether the rider may extend right now. Computed server-side on purpose:
+    /// Whether the customer may extend right now. Computed server-side on purpose:
     /// clients render this, they don't re-derive it from
     /// <see cref="ExtensionCount"/>, so the rule lives in exactly one place.
     /// </summary>
-    bool CanExtend = false);
+    bool CanExtend = false)
+{
+    /// <summary>DEPRECATED alias for <c>Customer</c>, kept for one release so a client
+    /// build that predates the rename keeps working. Delete once web and both apps
+    /// have shipped. See TODO_PAYMENTS.md phase 1b.</summary>
+    public TripCustomerInfo? Rider => Customer;
+}
 
 /// <summary>
-/// The assigned driver's public details, shown on the rider's tracking card.
+/// The assigned driver's public details, shown on the customer's tracking card.
 /// Only populated once a driver is assigned (null before then). Deliberately
 /// excludes phone/contact details — the in-app "Call"/"Message" actions don't
 /// need the raw number client-side.
@@ -67,13 +73,13 @@ public record TripDriverInfo(
     string? Plate);
 
 /// <summary>
-/// The rider's public details, shown on the assigned driver's pickup/arrived
+/// The customer's public details, shown on the assigned driver's pickup/arrived
 /// screens so they know who they're collecting. Only populated for the trip's
 /// own two parties — never on the open dispatch board, where broadcasting a
-/// rider's name to every nearby driver would leak it to people who never take
+/// customer's name to every nearby driver would leak it to people who never take
 /// the trip. Like <see cref="TripDriverInfo"/>, deliberately excludes phone.
 /// </summary>
-public record TripRiderInfo(
+public record TripCustomerInfo(
     string Name,
     decimal? Rating);
 

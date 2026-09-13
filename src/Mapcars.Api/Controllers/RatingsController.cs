@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Mapcars.Api.Controllers;
 
 /// <summary>
-/// Rider&lt;-&gt;driver ratings for a completed trip. Either participant may submit
+/// Customer&lt;-&gt;driver ratings for a completed trip. Either participant may submit
 /// one rating (in their direction) and list both ratings for the trip.
 /// </summary>
 [ApiController]

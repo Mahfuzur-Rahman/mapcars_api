@@ -21,7 +21,7 @@ public class DriverLocationService : IDriverLocationService
     private const double DefaultRadiusMeters = 5_000;
 
     /// <summary>
-    /// Ceiling on a caller's query radius (~50 miles). The rider's map sizes
+    /// Ceiling on a caller's query radius (~50 miles). The customer's map sizes
     /// each query to what's actually on screen rather than asking for a fixed
     /// distance, so this only ever bites on a zoomed-right-out view — it's a
     /// bound on the work, not the product rule.
@@ -55,7 +55,7 @@ public class DriverLocationService : IDriverLocationService
     {
         // The GEO pool is the "available for work" pool: only an admin-approved,
         // online driver belongs in it. Anyone else is evicted rather than added,
-        // so a client that keeps pushing can't put itself in front of riders.
+        // so a client that keeps pushing can't put itself in front of customers.
         var driver = await _drivers.GetByIdAsync(driverId, ct)
             ?? throw new NotFoundException("Driver", driverId);
 
@@ -102,13 +102,13 @@ public class DriverLocationService : IDriverLocationService
 
         // Same rule as the trip endpoints: only this trip's two parties, and a
         // non-party gets a 404 rather than a 403 (don't confirm the trip exists).
-        var isRider = callerType == UserTypes.Customer && trip.RiderId == callerId;
+        var isCustomer = callerType == UserTypes.Customer && trip.CustomerId == callerId;
         var isDriver = callerType == "driver" && trip.DriverId == callerId;
-        if (!isRider && !isDriver) throw new NotFoundException("Trip", tripId);
+        if (!isCustomer && !isDriver) throw new NotFoundException("Trip", tripId);
 
         // Nothing to report before a driver is assigned, or once the trip is over
         // — a completed trip's driver is off on someone else's job by then, and
-        // their position is no longer this rider's business.
+        // their position is no longer this customer's business.
         if (trip.DriverId is not { } driverId) return null;
         if (!RelayableStatuses.Contains(trip.Status)) return null;
 

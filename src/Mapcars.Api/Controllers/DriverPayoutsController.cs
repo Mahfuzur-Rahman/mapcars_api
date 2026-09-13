@@ -8,7 +8,7 @@ namespace Mapcars.Api.Controllers;
 
 /// <summary>
 /// Driver-only payout onboarding/status/history via Stripe Connect. Driver-scoped
-/// — a rider token can never reach this (see [Authorize(Roles = "driver")]).
+/// — a customer token can never reach this (see [Authorize(Roles = "driver")]).
 /// </summary>
 [ApiController]
 [Route("api/v1/driver")]

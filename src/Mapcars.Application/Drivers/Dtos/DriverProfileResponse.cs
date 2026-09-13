@@ -2,7 +2,7 @@ namespace Mapcars.Application.Drivers.Dtos;
 
 /// <summary>
 /// Full driver profile — richer than the shared AuthResponse (which is used
-/// by both riders and drivers across login/signup), so driver-only fields
+/// by both customers and drivers across login/signup), so driver-only fields
 /// like DOB/address/national ID live here instead.
 /// </summary>
 public class DriverProfileResponse

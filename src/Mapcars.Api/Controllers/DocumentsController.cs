@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Mapcars.Api.Controllers;
 
 /// <summary>
-/// Document upload/listing for the authenticated rider OR driver. Which
+/// Document upload/listing for the authenticated customer OR driver. Which
 /// DocumentType values are accepted depends on the caller's role — enforced
 /// in IDocumentService, not here (this is a thin HTTP translation layer).
 /// </summary>
@@ -55,7 +55,7 @@ public class DocumentsController : ControllerBase
         return Ok(await _documents.ListAsync(userType, userId.Value, ct));
     }
 
-    /// <summary>Authenticated streaming of document bytes for the owner driver/rider.</summary>
+    /// <summary>Authenticated streaming of document bytes for the owner driver/customer.</summary>
     [HttpGet("{id:guid}/content")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -72,7 +72,7 @@ public class DocumentsController : ControllerBase
         return File(file.Content, file.ContentType, file.FileName, enableRangeProcessing: true);
     }
 
-    /// <summary>Driver/rider requests an uploaded document to be deleted by admin.</summary>
+    /// <summary>Driver/customer requests an uploaded document to be deleted by admin.</summary>
     [HttpPost("{id:guid}/request-deletion")]
     [ProducesResponseType(typeof(DocumentResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

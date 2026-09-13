@@ -32,8 +32,8 @@ using Mapcars.Application.Ratings.Interfaces;
 using Mapcars.Application.Ratings.Services;
 using Mapcars.Application.Messages.Interfaces;
 using Mapcars.Application.Messages.Services;
-using Mapcars.Application.Riders.Interfaces;
-using Mapcars.Application.Riders.Services;
+using Mapcars.Application.Customers.Interfaces;
+using Mapcars.Application.Customers.Services;
 using Mapcars.Application.SavedPlaces.Interfaces;
 using Mapcars.Application.SavedPlaces.Services;
 using Mapcars.Application.Trips.Interfaces;
@@ -56,13 +56,13 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 
         // Application services (one line per feature service).
-        services.AddScoped<IRiderService, RiderService>();
+        services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<IUnifiedAuthService, UnifiedAuthService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddScoped<IAdminAuthService, AdminAuthService>();
         services.AddScoped<IAdminManagementService, AdminManagementService>();
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();
-        services.AddScoped<IRiderAuthService, RiderAuthService>();
+        services.AddScoped<ICustomerAuthService, CustomerAuthService>();
         services.AddScoped<IDriverAuthService, DriverAuthService>();
         services.AddScoped<ITripService, TripService>();
         services.AddScoped<IPricingService, PricingService>();

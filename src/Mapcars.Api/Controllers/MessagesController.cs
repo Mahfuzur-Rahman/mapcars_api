@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Mapcars.Api.Controllers;
 
 /// <summary>
-/// In-trip chat messages. Either participant (rider or driver) may send
+/// In-trip chat messages. Either participant (customer or driver) may send
 /// messages and list the full conversation history for their trip.
 /// </summary>
 [ApiController]

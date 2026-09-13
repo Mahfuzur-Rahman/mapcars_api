@@ -2,7 +2,7 @@ using Mapcars.Domain.Common;
 
 namespace Mapcars.Domain.Entities;
 
-public class Rider : BaseEntity
+public class Customer : BaseEntity
 {
     public string? FullName { get; set; }
     public string? Email { get; set; }

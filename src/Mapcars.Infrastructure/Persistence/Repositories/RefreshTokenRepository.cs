@@ -16,7 +16,7 @@ public class RefreshTokenRepository(AppDbContext db) : IRefreshTokenRepository
 
     /// <summary>
     /// A user's live refresh tokens, accepting either passenger spelling for the
-    /// length of the Rider -> Customer rename.
+    /// length of the Customer -> Customer rename.
     ///
     /// <para>
     /// This backs <c>RevokeAllAsync</c>, the token-theft kill switch. Missing a

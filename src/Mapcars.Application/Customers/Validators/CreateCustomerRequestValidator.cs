@@ -1,11 +1,11 @@
 using FluentValidation;
-using Mapcars.Application.Riders.Dtos;
+using Mapcars.Application.Customers.Dtos;
 
-namespace Mapcars.Application.Riders.Validators;
+namespace Mapcars.Application.Customers.Validators;
 
-public class CreateRiderRequestValidator : AbstractValidator<CreateRiderRequest>
+public class CreateCustomerRequestValidator : AbstractValidator<CreateCustomerRequest>
 {
-    public CreateRiderRequestValidator()
+    public CreateCustomerRequestValidator()
     {
         RuleFor(x => x.FullName).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(256);

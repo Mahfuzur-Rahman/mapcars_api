@@ -8,9 +8,9 @@ public class SavedPlaceRepository : GenericRepository<SavedPlace>, ISavedPlaceRe
 {
     public SavedPlaceRepository(AppDbContext context) : base(context) { }
 
-    public async Task<IReadOnlyList<SavedPlace>> ListForRiderAsync(Guid riderId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<SavedPlace>> ListForCustomerAsync(Guid customerId, CancellationToken ct = default)
         => await Set.AsNoTracking()
-            .Where(p => p.RiderId == riderId)
+            .Where(p => p.CustomerId == customerId)
             .OrderBy(p => p.Label)
             .ToListAsync(ct);
 }

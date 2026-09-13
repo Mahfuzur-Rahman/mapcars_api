@@ -13,8 +13,8 @@ public class DocumentConfiguration : IEntityTypeConfiguration<Document>
 
         // Column casing note: base columns are PascalCase (EF default), the
         // descriptive columns added here follow the snake_case convention used
-        // by riders/drivers' auth columns — see database/005_documents.sql.
-        builder.Property(d => d.RiderId).HasColumnName("rider_id");
+        // by customers/drivers' auth columns — see database/005_documents.sql.
+        builder.Property(d => d.CustomerId).HasColumnName("rider_id");
         builder.Property(d => d.DriverId).HasColumnName("driver_id");
         builder.Property(d => d.Type).HasConversion<string>().HasMaxLength(30);
         builder.Property(d => d.StorageKey).HasColumnName("storage_key").IsRequired().HasMaxLength(260);
@@ -27,9 +27,9 @@ public class DocumentConfiguration : IEntityTypeConfiguration<Document>
         builder.Property(d => d.DeletionReason).HasColumnName("deletion_reason");
         builder.Property(d => d.DeletionRequestedAtUtc).HasColumnName("deletion_requested_at_utc");
 
-        builder.HasOne(d => d.Rider)
+        builder.HasOne(d => d.Customer)
             .WithMany()
-            .HasForeignKey(d => d.RiderId)
+            .HasForeignKey(d => d.CustomerId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(d => d.Driver)
@@ -37,7 +37,7 @@ public class DocumentConfiguration : IEntityTypeConfiguration<Document>
             .HasForeignKey(d => d.DriverId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(d => d.RiderId);
+        builder.HasIndex(d => d.CustomerId);
         builder.HasIndex(d => d.DriverId);
         builder.HasIndex(d => d.IsDeletionRequested);
     }

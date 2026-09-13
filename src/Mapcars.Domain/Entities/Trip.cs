@@ -5,8 +5,8 @@ namespace Mapcars.Domain.Entities;
 
 public class Trip : BaseEntity
 {
-    public Guid RiderId { get; set; }
-    public Rider? Rider { get; set; }
+    public Guid CustomerId { get; set; }
+    public Customer? Customer { get; set; }
 
     public Guid? DriverId { get; set; }
     public Driver? Driver { get; set; }
@@ -22,7 +22,7 @@ public class Trip : BaseEntity
     public TripStatus Status { get; set; } = TripStatus.Requested;
 
     /// <summary>
-    /// 4-digit meet-up code, generated at booking. The rider reads it out at the
+    /// 4-digit meet-up code, generated at booking. The customer reads it out at the
     /// kerb and the driver confirms it before starting the trip. Null on trips
     /// booked before this existed — clients treat that as "nothing to confirm".
     /// </summary>
@@ -32,7 +32,7 @@ public class Trip : BaseEntity
     public decimal? FareAmount { get; set; }
 
     /// <summary>
-    /// Optional tip the rider adds at booking to attract drivers (broadcast model).
+    /// Optional tip the customer adds at booking to attract drivers (broadcast model).
     /// Paid on top of the fare and passed 100% to the driver — no commission.
     /// </summary>
     public decimal TipAmount { get; set; }
@@ -64,7 +64,7 @@ public class Trip : BaseEntity
 
     // ─── Payment ──────────────────────────────────────────────────────────────
 
-    /// <summary>How the rider pays. Defaults to cash (settled in person, no charge).</summary>
+    /// <summary>How the customer pays. Defaults to cash (settled in person, no charge).</summary>
     public PaymentMethod PaymentMethod { get; set; } = PaymentMethod.Cash;
 
     /// <summary>Settlement state of the fare. Cash: Pending at booking → Collected on completion.</summary>
@@ -82,14 +82,14 @@ public class Trip : BaseEntity
     ///
     /// Once it passes, the request is <i>paused</i>: it comes off every driver's
     /// board and can no longer be accepted, but the trip is still
-    /// <see cref="TripStatus.Requested"/> and the rider may still extend it.
+    /// <see cref="TripStatus.Requested"/> and the customer may still extend it.
     /// Paused is derived from this timestamp rather than stored, so it takes
     /// effect the instant the deadline passes instead of on the next sweep.
     /// </summary>
     public DateTime ExpiresAtUtc { get; set; }
 
     /// <summary>
-    /// How many times the rider has extended the search (0…<c>TripExpiry.MaxExtensions</c>).
+    /// How many times the customer has extended the search (0…<c>TripExpiry.MaxExtensions</c>).
     /// Bounds how long a trip can sit holding a fare priced at booking, since
     /// surge and driver supply both move underneath it.
     /// </summary>
@@ -101,6 +101,6 @@ public class Trip : BaseEntity
     public DateTime? CancelledAtUtc { get; set; }
     public string? CancelledReason { get; set; }
 
-    /// <summary>Set only when a driver cancels after arriving because the rider never showed up.</summary>
+    /// <summary>Set only when a driver cancels after arriving because the customer never showed up.</summary>
     public bool IsNoShow { get; set; }
 }

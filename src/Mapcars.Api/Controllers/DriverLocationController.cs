@@ -9,7 +9,7 @@ namespace Mapcars.Api.Controllers;
 
 /// <summary>
 /// Live driver location (Redis GEO hot path). Drivers push their position while
-/// online; riders query nearby drivers for the "cars near you" map and matching.
+/// online; customers query nearby drivers for the "cars near you" map and matching.
 /// </summary>
 [ApiController]
 [Route("api/v1/drivers")]

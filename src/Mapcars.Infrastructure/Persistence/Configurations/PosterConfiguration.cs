@@ -13,7 +13,7 @@ public class PosterConfiguration : IEntityTypeConfiguration<Poster>
 
         // Column casing note: base columns are PascalCase (EF default), the
         // descriptive columns added here follow the snake_case convention used
-        // by documents/riders — see database/020_posters.sql.
+        // by documents/customers — see database/020_posters.sql.
         builder.Property(p => p.StorageKey).HasColumnName("storage_key").IsRequired().HasMaxLength(260);
         builder.Property(p => p.ContentType).HasColumnName("content_type").IsRequired().HasMaxLength(100);
         builder.Property(p => p.Title).HasColumnName("title").HasMaxLength(200);

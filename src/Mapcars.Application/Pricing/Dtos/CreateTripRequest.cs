@@ -1,7 +1,7 @@
 namespace Mapcars.Application.Pricing.Dtos;
 
 /// <summary>
-/// Inbound payload to book a trip. The rider identity comes from the JWT, never
+/// Inbound payload to book a trip. The customer identity comes from the JWT, never
 /// the body. The API re-prices the chosen tier from the current fare chart (using
 /// the clamped route metrics) — the client never sends the price.
 /// </summary>

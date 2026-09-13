@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Mapcars.Api.Controllers;
 
 /// <summary>
-/// Push-notification device registration. A signed-in rider or driver registers
+/// Push-notification device registration. A signed-in customer or driver registers
 /// its FCM token here after login (and on token refresh), and unregisters on
 /// logout. The owner (userType + id) comes from the JWT, never the body.
 /// </summary>

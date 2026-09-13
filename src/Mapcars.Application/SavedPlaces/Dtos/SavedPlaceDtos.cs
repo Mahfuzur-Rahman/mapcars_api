@@ -1,6 +1,6 @@
 namespace Mapcars.Application.SavedPlaces.Dtos;
 
-/// <summary>Create-or-update one of the authenticated rider's saved places.</summary>
+/// <summary>Create-or-update one of the authenticated customer's saved places.</summary>
 public record UpsertSavedPlaceRequest(
     string Label,
     string Address,

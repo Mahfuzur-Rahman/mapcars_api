@@ -12,7 +12,7 @@ public class AuthResponse
     /// bouncing them to the login screen every hour.
     /// </summary>
     public string RefreshToken { get; set; } = string.Empty;
-    public string UserType { get; set; } = string.Empty; // "rider" | "driver"
+    public string UserType { get; set; } = string.Empty; // "customer" | "driver"
     public Guid UserId { get; set; }
     public string? FullName { get; set; }
     public string? Email { get; set; }

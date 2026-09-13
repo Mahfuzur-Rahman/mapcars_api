@@ -10,8 +10,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace Mapcars.Api.Controllers;
 
 /// <summary>
-/// Rider trips: history, an anonymous fare quote, and booking. Rider-scoped
-/// actions require a rider token (see [Authorize(Roles = UserTypes.CustomerRoles)]); quoting is
+/// Customer trips: history, an anonymous fare quote, and booking. Customer-scoped
+/// actions require a customer token (see [Authorize(Roles = UserTypes.CustomerRoles)]); quoting is
 /// open so the choose-ride screen can price a route before/without sign-in.
 /// </summary>
 [ApiController]
@@ -32,8 +32,8 @@ public class TripsController : ControllerBase
     [ProducesResponseType(typeof(IReadOnlyList<TripResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<TripResponse>>> List(CancellationToken ct)
     {
-        if (!TryGetRiderId(out var riderId)) return Unauthorized();
-        return Ok(await _trips.ListForRiderAsync(riderId, ct));
+        if (!TryGetCustomerId(out var customerId)) return Unauthorized();
+        return Ok(await _trips.ListForCustomerAsync(customerId, ct));
     }
 
     /// <summary>Price every tier for a route. Open — no fare is charged here.</summary>
@@ -49,14 +49,14 @@ public class TripsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<TripResponse>> Create([FromBody] CreateTripRequest req, CancellationToken ct)
     {
-        if (!TryGetRiderId(out var riderId)) return Unauthorized();
-        var trip = await _trips.CreateAsync(riderId, req, ct);
+        if (!TryGetCustomerId(out var customerId)) return Unauthorized();
+        var trip = await _trips.CreateAsync(customerId, req, ct);
         return CreatedAtAction(nameof(List), null, trip);
     }
 
     /// <summary>
     /// Keep searching. Gives a still-open request another search window and puts
-    /// it back in front of drivers — the rider's answer when nobody has taken it.
+    /// it back in front of drivers — the customer's answer when nobody has taken it.
     /// </summary>
     [HttpPost("{id:guid}/extend")]
     [ProducesResponseType(typeof(TripResponse), StatusCodes.Status200OK)]
@@ -64,10 +64,10 @@ public class TripsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<TripResponse>> Extend(Guid id, CancellationToken ct)
     {
-        if (!TryGetRiderId(out var riderId)) return Unauthorized();
-        return Ok(await _trips.ExtendAsync(riderId, id, ct));
+        if (!TryGetCustomerId(out var customerId)) return Unauthorized();
+        return Ok(await _trips.ExtendAsync(customerId, id, ct));
     }
 
-    private bool TryGetRiderId(out Guid riderId)
-        => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out riderId);
+    private bool TryGetCustomerId(out Guid customerId)
+        => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out customerId);
 }
