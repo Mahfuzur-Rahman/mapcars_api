@@ -160,6 +160,10 @@ public class TripService : ITripService
             // Card is accepted here but not yet charged; Stripe capture lands next.
             PaymentMethod = ParsePaymentMethod(req.PaymentMethod),
             PaymentStatus = PaymentStatus.Pending,
+
+            // The search window. Set here rather than defaulted on the entity so
+            // there is one obvious place where a request's deadline begins.
+            ExpiresAtUtc = TripExpiry.InitialDeadline(DateTime.UtcNow),
         };
 
         await _trips.AddAsync(trip, ct);
@@ -189,6 +193,41 @@ public class TripService : ITripService
     /// </summary>
     private static string NewPin() => Random.Shared.Next(1000, 10000).ToString();
 
+    public async Task<TripResponse> ExtendAsync(
+        Guid riderId, Guid tripId, CancellationToken ct = default)
+    {
+        var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
+
+        // Same treatment as GetForUserAsync: a trip belonging to someone else is
+        // "not found", never "forbidden", so this can't be used to probe ids.
+        if (trip.RiderId != riderId) throw new NotFoundException("Trip", tripId);
+
+        if (trip.Status != TripStatus.Requested)
+            throw new DomainException("This ride is no longer searching for a driver.");
+
+        if (trip.ExtensionCount >= TripExpiry.MaxExtensions)
+            throw new DomainException("You've already extended this search as far as it goes.");
+
+        // Past the grace period the sweeper has closed it, or is about to. Letting
+        // an extension resurrect it would put a request back on the boards after
+        // the rider was told it was over.
+        if (TripExpiry.IsPastGrace(trip, DateTime.UtcNow))
+            throw new DomainException("This search has already ended — please book again.");
+
+        trip.ExpiresAtUtc = TripExpiry.ExtendedDeadline(DateTime.UtcNow);
+        trip.ExtensionCount++;
+        await _uow.SaveChangesAsync(ct);
+
+        // Straight to the widest ring. The trip is well past DispatchRadius.MaxAfter
+        // by now, so this is the radius the age rule would pick anyway — passing it
+        // explicitly says the intent out loud. Best-effort, like the booking
+        // broadcast: drivers also poll, and the extension has already been saved.
+        try { await _dispatch.BroadcastAsync(trip, DispatchRadius.MaxMeters, ct); }
+        catch { /* realtime broadcast is non-critical to the extension */ }
+
+        return await NotifiedAsync(trip, ct);
+    }
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     public async Task<TripResponse> AcceptAsync(Guid driverId, Guid tripId, CancellationToken ct = default)
@@ -205,7 +244,7 @@ public class TripService : ITripService
 
         // Drop it off every other nearby driver's board — best-effort, a
         // realtime hiccup here must never fail the accept that already succeeded.
-        try { await _dispatch.WithdrawAsync(trip, ct); }
+        try { await _dispatch.WithdrawAsync(trip, ct: ct); }
         catch { /* non-critical */ }
 
         return await NotifiedAsync(trip, ct);
@@ -289,7 +328,7 @@ public class TripService : ITripService
         // drivers' boards — pull it off theirs too (best-effort).
         if (trip.DriverId is null)
         {
-            try { await _dispatch.WithdrawAsync(trip, ct); }
+            try { await _dispatch.WithdrawAsync(trip, ct: ct); }
             catch { /* non-critical */ }
         }
 

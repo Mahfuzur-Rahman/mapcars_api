@@ -44,6 +44,19 @@ public class TripConfiguration : IEntityTypeConfiguration<Trip>
             .HasForeignKey(t => t.DriverId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        // Search window (029_trip_expiry.sql). The column carries a DB-level
+        // default so the script can be applied before this image is deployed
+        // (see the script) — but the deadline is always set explicitly in
+        // TripService.CreateAsync, and that is where it belongs.
+        builder.Property(t => t.ExpiresAtUtc).IsRequired();
+        builder.Property(t => t.ExtensionCount).IsRequired().HasDefaultValue(0);
+
         builder.HasIndex(t => t.Status);
+
+        // Serves both the board queries and the lifecycle sweeper, which ask the
+        // same question from opposite ends: open requests whose window is still,
+        // or no longer, live.
+        builder.HasIndex(t => new { t.Status, t.ExpiresAtUtc })
+            .HasDatabaseName("ix_trips_status_expires");
     }
 }

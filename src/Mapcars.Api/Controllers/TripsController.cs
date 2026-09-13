@@ -53,6 +53,20 @@ public class TripsController : ControllerBase
         return CreatedAtAction(nameof(List), null, trip);
     }
 
+    /// <summary>
+    /// Keep searching. Gives a still-open request another search window and puts
+    /// it back in front of drivers — the rider's answer when nobody has taken it.
+    /// </summary>
+    [HttpPost("{id:guid}/extend")]
+    [ProducesResponseType(typeof(TripResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TripResponse>> Extend(Guid id, CancellationToken ct)
+    {
+        if (!TryGetRiderId(out var riderId)) return Unauthorized();
+        return Ok(await _trips.ExtendAsync(riderId, id, ct));
+    }
+
     private bool TryGetRiderId(out Guid riderId)
         => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out riderId);
 }

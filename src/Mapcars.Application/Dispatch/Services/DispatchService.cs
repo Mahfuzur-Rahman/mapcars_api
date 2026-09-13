@@ -104,15 +104,24 @@ public class DispatchService : IDispatchService
         }
     }
 
-    public async Task WithdrawAsync(Trip trip, CancellationToken ct = default)
+    public async Task WithdrawAsync(
+        Trip trip,
+        DispatchWithdrawReason reason = DispatchWithdrawReason.Taken,
+        CancellationToken ct = default)
     {
         // Always the widest ring, whatever the trip had escalated to — see the
         // interface: under-sweeping here strands a dead card on a distant
         // driver's board.
         var nearby = await _locations.QueryNearbyAsync(
             trip.PickupLat, trip.PickupLng, DispatchRadius.MaxMeters, MaxDrivers, ct);
+
         foreach (var candidate in nearby)
-            await _notifier.TripTakenAsync(candidate.DriverId, trip.Id, ct);
+        {
+            if (reason == DispatchWithdrawReason.Expired)
+                await _notifier.TripExpiredAsync(candidate.DriverId, trip.Id, ct);
+            else
+                await _notifier.TripTakenAsync(candidate.DriverId, trip.Id, ct);
+        }
     }
 
     public static bool IsTierCompatible(string? driverTier, string? tripTier)

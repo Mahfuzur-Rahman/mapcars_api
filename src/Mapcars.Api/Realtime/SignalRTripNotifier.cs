@@ -65,6 +65,34 @@ public sealed class SignalRTripNotifier : ITripNotifier
         }
     }
 
+    public async Task TripExpiredAsync(Guid driverId, Guid tripId, CancellationToken ct = default)
+    {
+        try
+        {
+            await _hub.Clients
+                .Group(TripHub.DriverGroupFor(driverId.ToString()))
+                .SendAsync("tripExpired", tripId, ct);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to push tripExpired to driver {DriverId}.", driverId);
+        }
+    }
+
+    public async Task TripExpiringAsync(TripResponse trip, CancellationToken ct = default)
+    {
+        try
+        {
+            await _hub.Clients
+                .Group(TripHub.GroupFor(trip.Id.ToString()))
+                .SendAsync("tripExpiring", trip, ct);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to push tripExpiring for trip {TripId}.", trip.Id);
+        }
+    }
+
     public async Task DriverLocationAsync(
         Guid tripId, double lat, double lng, double? heading = null, CancellationToken ct = default)
     {

@@ -24,6 +24,30 @@ public interface ITripNotifier
     /// requests board.</summary>
     Task TripTakenAsync(Guid driverId, Guid tripId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Tell a nearby driver a request they were shown has run out of time —
+    /// pushed to their personal group as <c>tripExpired</c>.
+    ///
+    /// Deliberately not <c>tripTaken</c>: "someone beat you to it" and "nobody
+    /// took it" want different copy and different card treatment, and collapsing
+    /// them would tell drivers a job was taken when in fact none of them wanted
+    /// it — which is exactly the signal a driver should be seeing.
+    /// </summary>
+    Task TripExpiredAsync(Guid driverId, Guid tripId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Tell everyone tracking this trip that its search window has closed and
+    /// the rider is being asked whether to keep looking (a <c>tripExpiring</c>
+    /// event). The trip is still <c>Requested</c>, so no <c>tripUpdated</c>
+    /// would otherwise fire.
+    ///
+    /// This is a backstop, not the trigger: a foregrounded rider app raises the
+    /// prompt from its own countdown, so the prompt still appears on time when
+    /// the realtime connection is dead — which is precisely when a rider would
+    /// otherwise lose the ride without being asked.
+    /// </summary>
+    Task TripExpiringAsync(TripResponse trip, CancellationToken ct = default);
+
     /// <summary>Relay the assigned driver's live position to everyone tracking
     /// this trip (its per-trip group) — a <c>driverLocation</c> event.
     /// <paramref name="heading"/> (degrees, 0 = north, clockwise) is null when the
