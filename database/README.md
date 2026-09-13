@@ -31,7 +31,28 @@ psql -U postgres -d mapcars -f 014_ratings.sql
 psql -U postgres -d mapcars -f 015_driver_verification_documents.sql
 psql -U postgres -d mapcars -f 016_fare_settings_menu.sql
 psql -U postgres -d mapcars -f 017_trip_tip.sql
+# ... 018 through 029 in numeric order ...
+psql -U postgres -d mapcars -f 030_user_type_dual_accept.sql
+psql -U postgres -d mapcars -f 031_rider_to_customer.sql
+psql -U postgres -d mapcars -f 032_user_type_finalize.sql
 ```
+
+> `psql` is **not installed** on the dev machine — use the `mapcars-db` skill's
+> bundled Npgsql runner instead. The commands above show run *order*, not the
+> tool.
+
+> **030–032 are the Rider → Customer rename and are order-critical.** `030` is
+> safe to apply days early and changes no behaviour. **`031` must run with the
+> API stopped**, in the same maintenance window as the image that flips
+> `UserTypes.Customer`, and it has a paired `031_rollback.sql` — after `031` the
+> image and the database are one artifact, so roll back both or neither. `032`
+> closes the compatibility window and should wait ~2 weeks. Each refuses to run
+> out of order.
+
+> A fresh database runs `002` (creating `riders`) and then `031` renames it. The
+> historical scripts are deliberately left as they were: they record what was
+> actually executed, and it means every fresh build rehearses the real
+> migration.
 
 All scripts are idempotent (`CREATE TABLE IF NOT EXISTS`, `ON CONFLICT DO NOTHING`),
 so re-running them is safe.
@@ -64,6 +85,12 @@ so re-running them is safe.
 | `024_trip_pin.sql` | `trips` (+ `Pin` — 4-digit meet-up code, generated at booking; rider shows it, driver confirms it before starting) |
 | `025_refresh_tokens.sql` | `refresh_tokens` (long-lived, hashed, rotated-on-use credential behind "stay signed in until you sign out"; revocable, unlike the JWT) |
 | `026_trip_messages.sql` | `trip_messages` (in-trip rider↔driver chat; persisted history + realtime `messageReceived` push over the trip's existing SignalR group) |
+| `027_vehicle_tiers_and_appeals.sql` | `vehicle_tier_appeals` (+ tier columns on `vehicles`) |
+| `028_document_deletion_requests.sql` | `documents` (+ deletion-request columns; driver requests, admin reviews) |
+| `029_trip_expiry.sql` | `trips` (+ `ExpiresAtUtc`/`ExtensionCount` — the 3-minute search window a customer can extend) |
+| `030_user_type_dual_accept.sql` | widens 3 CHECK constraints (`ratings`, `trip_messages`, `verification_codes`) to accept `'customer'` as well as `'rider'`. No behaviour change; apply days before `031`. Reverse: `030_rollback.sql` |
+| `031_rider_to_customer.sql` | **the rename.** `riders`→`customers`; `trips."RiderId"`, `documents.rider_id`, `saved_places.rider_id` → `customer_*`; 4 constraints, 7 indexes; the stored `'rider'` literal in 6 tables; `trips."Status"` `CancelledByRider`→`CancelledByCustomer`; 3 `menus` rows. **API STOPPED.** Reverse: `031_rollback.sql` |
+| `032_user_type_finalize.sql` | narrows the 3 CHECK constraints to `'customer'` only, refusing if any legacy row survives. Run ~2 weeks after `031` |
 
 ## Conventions
 
