@@ -22,10 +22,47 @@ public class TripRepository : GenericRepository<Trip>, ITripRepository
             .ToListAsync(ct);
 
     public async Task<IReadOnlyList<Trip>> ListAvailableAsync(CancellationToken ct = default)
-        => await Set.AsNoTracking()
-            .Where(t => t.Status == TripStatus.Requested && t.DriverId == null)
+    {
+        // Evaluated once, here, rather than inside the expression tree — EF would
+        // otherwise translate DateTime.UtcNow to the *database* clock, and the
+        // deadline this compares against was written from the API's.
+        var now = DateTime.UtcNow;
+
+        return await Set.AsNoTracking()
+            .Where(t => t.Status == TripStatus.Requested
+                        && t.DriverId == null
+                        && t.ExpiresAtUtc > now)
             .OrderBy(t => t.CreatedAtUtc)
             .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<Trip>> ListLapsedAsync(
+        DateTime lapsedBeforeUtc, CancellationToken ct = default)
+        => await Set.AsNoTracking()
+            .Where(t => t.Status == TripStatus.Requested
+                        && t.DriverId == null
+                        && t.ExpiresAtUtc <= lapsedBeforeUtc)
+            .OrderBy(t => t.CreatedAtUtc)
+            .ToListAsync(ct);
+
+    public async Task<bool> TryExpireAsync(
+        Guid tripId, DateTime nowUtc, CancellationToken ct = default)
+    {
+        // Mirror of TryAssignAsync: one conditional UPDATE decides it, so an
+        // accept landing in the same instant cannot also succeed.
+        var rows = await Set
+            .Where(t => t.Id == tripId
+                        && t.Status == TripStatus.Requested
+                        && t.DriverId == null
+                        && t.ExpiresAtUtc <= nowUtc)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(t => t.Status, TripStatus.Expired)
+                // Reuses the existing "when did this trip end" column rather
+                // than adding an ExpiredAtUtc that would mean the same thing.
+                // Status already says *how* it ended.
+                .SetProperty(t => t.CancelledAtUtc, nowUtc), ct);
+        return rows == 1;
+    }
 
     public Task<bool> HasActiveTripAsync(Guid driverId, CancellationToken ct = default)
         => Set.AsNoTracking().AnyAsync(
@@ -57,8 +94,19 @@ public class TripRepository : GenericRepository<Trip>, ITripRepository
     public async Task<bool> TryAssignAsync(Guid tripId, Guid driverId, CancellationToken ct = default)
     {
         // Single atomic UPDATE — only one caller can flip Requested→DriverAssigned.
+        //
+        // The ExpiresAtUtc clause is what actually stops a lapsed request being
+        // accepted; the countdowns in both apps are advisory, since a phone's
+        // clock is not something an assignment may depend on. It also settles
+        // the accept-at-2:59.9 race by construction: this update and the
+        // sweeper's cannot both match the same row.
+        var now = DateTime.UtcNow;
+
         var rows = await Set
-            .Where(t => t.Id == tripId && t.Status == TripStatus.Requested && t.DriverId == null)
+            .Where(t => t.Id == tripId
+                        && t.Status == TripStatus.Requested
+                        && t.DriverId == null
+                        && t.ExpiresAtUtc > now)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(t => t.Status, TripStatus.DriverAssigned)
                 .SetProperty(t => t.DriverId, driverId), ct);

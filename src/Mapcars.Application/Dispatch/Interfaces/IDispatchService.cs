@@ -3,6 +3,20 @@ using Mapcars.Domain.Entities;
 namespace Mapcars.Application.Dispatch.Interfaces;
 
 /// <summary>
+/// Why a request is coming off the boards. The driver app renders the two
+/// differently, and it should: "someone beat you to it" is a race you lost,
+/// while "nobody took it" is information about the market you're sitting in.
+/// </summary>
+public enum DispatchWithdrawReason
+{
+    /// <summary>Another driver accepted it, or the rider cancelled it.</summary>
+    Taken,
+
+    /// <summary>Its search window ran out with nobody accepting.</summary>
+    Expired
+}
+
+/// <summary>
 /// Matching: broadcast marketplace. A new open request is pushed to all nearby
 /// online drivers, who see it on their board (with fare + tip) and race to accept
 /// — first-come wins (the atomic accept guards against double-assignment).
@@ -28,5 +42,8 @@ public interface IDispatchService
     /// drivers who may since have moved, and a driver who is never told it was
     /// taken keeps a dead card on their board that 400s when they tap it.
     /// </summary>
-    Task WithdrawAsync(Trip trip, CancellationToken ct = default);
+    Task WithdrawAsync(
+        Trip trip,
+        DispatchWithdrawReason reason = DispatchWithdrawReason.Taken,
+        CancellationToken ct = default);
 }

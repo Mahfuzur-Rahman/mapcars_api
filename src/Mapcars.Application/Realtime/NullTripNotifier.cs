@@ -19,6 +19,12 @@ public sealed class NullTripNotifier : ITripNotifier
     public Task TripTakenAsync(Guid driverId, Guid tripId, CancellationToken ct = default)
         => Task.CompletedTask;
 
+    public Task TripExpiredAsync(Guid driverId, Guid tripId, CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    public Task TripExpiringAsync(TripResponse trip, CancellationToken ct = default)
+        => Task.CompletedTask;
+
     public Task DriverLocationAsync(
         Guid tripId, double lat, double lng, double? heading = null, CancellationToken ct = default)
         => Task.CompletedTask;

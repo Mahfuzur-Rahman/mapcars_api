@@ -35,6 +35,17 @@ public interface ITripService
     /// </summary>
     Task<TripResponse> CreateAsync(Guid riderId, CreateTripRequest request, CancellationToken ct = default);
 
+    /// <summary>
+    /// Give a still-open request another search window (see <c>TripExpiry</c>)
+    /// and put it back in front of drivers at the widest radius. The rider's
+    /// answer to "nobody has taken this yet — keep looking?".
+    ///
+    /// Refused once the trip has left <c>Requested</c>, once the rider has used
+    /// their extensions, or once the grace period has run out — a request the
+    /// rider has been told is over must not come back.
+    /// </summary>
+    Task<TripResponse> ExtendAsync(Guid riderId, Guid tripId, CancellationToken ct = default);
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     /// <summary>Accept an open trip (broadcast model, first-come — atomic).</summary>

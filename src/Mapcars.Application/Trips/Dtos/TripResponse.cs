@@ -33,7 +33,26 @@ public record TripResponse(
     bool IsNoShow,
     TripDriverInfo? Driver,
     TripRiderInfo? Rider = null,
-    string? Pin = null);
+    string? Pin = null,
+
+    /// <summary>
+    /// When the current search window closes. Both apps count down to this
+    /// value; they must not compute a deadline from their own clock, which on a
+    /// driver's phone can be minutes out. Only meaningful while the trip is
+    /// still <c>Requested</c> — on a trip that already ended it is simply the
+    /// deadline it never reached.
+    /// </summary>
+    DateTime? ExpiresAtUtc = null,
+
+    /// <summary>How many times the rider has already extended the search.</summary>
+    int ExtensionCount = 0,
+
+    /// <summary>
+    /// Whether the rider may extend right now. Computed server-side on purpose:
+    /// clients render this, they don't re-derive it from
+    /// <see cref="ExtensionCount"/>, so the rule lives in exactly one place.
+    /// </summary>
+    bool CanExtend = false);
 
 /// <summary>
 /// The assigned driver's public details, shown on the rider's tracking card.

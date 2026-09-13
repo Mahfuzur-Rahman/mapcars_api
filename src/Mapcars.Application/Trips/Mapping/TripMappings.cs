@@ -1,3 +1,4 @@
+using Mapcars.Application.Dispatch;
 using Mapcars.Application.Trips.Dtos;
 using Mapcars.Domain.Entities;
 
@@ -53,5 +54,8 @@ public static class TripMappings
         trip.IsNoShow,
         driver,
         rider,
-        includePin ? trip.Pin : null);
+        includePin ? trip.Pin : null,
+        trip.ExpiresAtUtc,
+        trip.ExtensionCount,
+        TripExpiry.CanExtend(trip, DateTime.UtcNow));
 }

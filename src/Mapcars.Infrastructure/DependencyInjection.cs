@@ -106,8 +106,11 @@ public static class DependencyInjection
         services.AddHostedService<GeoStalenessSweepService>();
 
         // Widens an unaccepted request's broadcast ring as it ages (the pull
-        // side of the same rule lives in ITripService.ListAvailableNearbyAsync).
-        services.AddHostedService<DispatchEscalationService>();
+        // side of the same rule lives in ITripService.ListAvailableNearbyAsync),
+        // then prompts the rider and closes the trip when its search window runs
+        // out. Notification only — expiry is enforced by the board queries and
+        // the atomic accept, not by this timer.
+        services.AddHostedService<DispatchLifecycleService>();
 
         // Security
         services.AddScoped<IPasswordHasher, PasswordHasher>();

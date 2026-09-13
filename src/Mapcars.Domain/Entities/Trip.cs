@@ -73,6 +73,28 @@ public class Trip : BaseEntity
     /// <summary>When the fare was settled (cash collected / card captured). Null until paid.</summary>
     public DateTime? PaidAtUtc { get; set; }
 
+    // ─── Search window (open requests only) ───────────────────────────────────
+
+    /// <summary>
+    /// When the current search window closes. The server owns this value and
+    /// clients count down to it — never to a deadline they worked out from
+    /// their own clock, which on a driver's phone can be minutes out.
+    ///
+    /// Once it passes, the request is <i>paused</i>: it comes off every driver's
+    /// board and can no longer be accepted, but the trip is still
+    /// <see cref="TripStatus.Requested"/> and the rider may still extend it.
+    /// Paused is derived from this timestamp rather than stored, so it takes
+    /// effect the instant the deadline passes instead of on the next sweep.
+    /// </summary>
+    public DateTime ExpiresAtUtc { get; set; }
+
+    /// <summary>
+    /// How many times the rider has extended the search (0…<c>TripExpiry.MaxExtensions</c>).
+    /// Bounds how long a trip can sit holding a fare priced at booking, since
+    /// surge and driver supply both move underneath it.
+    /// </summary>
+    public int ExtensionCount { get; set; }
+
     // ─── Lifecycle / cancellation ─────────────────────────────────────────────
 
     public DateTime? CompletedAtUtc { get; set; }
