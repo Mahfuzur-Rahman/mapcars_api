@@ -41,7 +41,7 @@ public class TripConfiguration : IEntityTypeConfiguration<Trip>
         // not exist until 031. It compiles and then fails on every trip query.
         // Pinned explicitly so the two can never drift again; the literal flips to
         // "CustomerId" in the same commit as the migration.
-        builder.Property(t => t.CustomerId).HasColumnName("RiderId");
+        builder.Property(t => t.CustomerId).HasColumnName("CustomerId");
 
         builder.HasOne(t => t.Customer)
             .WithMany(r => r.Trips)

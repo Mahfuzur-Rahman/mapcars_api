@@ -14,7 +14,7 @@ public class DocumentConfiguration : IEntityTypeConfiguration<Document>
         // Column casing note: base columns are PascalCase (EF default), the
         // descriptive columns added here follow the snake_case convention used
         // by customers/drivers' auth columns — see database/005_documents.sql.
-        builder.Property(d => d.CustomerId).HasColumnName("rider_id");
+        builder.Property(d => d.CustomerId).HasColumnName("customer_id");
         builder.Property(d => d.DriverId).HasColumnName("driver_id");
         builder.Property(d => d.Type).HasConversion<string>().HasMaxLength(30);
         builder.Property(d => d.StorageKey).HasColumnName("storage_key").IsRequired().HasMaxLength(260);

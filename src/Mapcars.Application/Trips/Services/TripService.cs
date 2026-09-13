@@ -295,13 +295,13 @@ public class TripService : ITripService
         if (!isCustomer && !isDriver)
             throw new NotFoundException("Trip", tripId);
 
-        if (trip.Status is TripStatus.Completed or TripStatus.CancelledByRider or TripStatus.CancelledByDriver)
+        if (trip.Status is TripStatus.Completed or TripStatus.CancelledByCustomer or TripStatus.CancelledByDriver)
             throw new DomainException("This trip can no longer be cancelled.");
 
         // No-show only makes sense for a driver who actually arrived and waited.
         var isNoShow = isDriver && request.IsNoShow && trip.Status == TripStatus.DriverArrived;
 
-        trip.Status = isCustomer ? TripStatus.CancelledByRider : TripStatus.CancelledByDriver;
+        trip.Status = isCustomer ? TripStatus.CancelledByCustomer : TripStatus.CancelledByDriver;
         trip.CancelledAtUtc = DateTime.UtcNow;
         trip.CancelledReason = request.Reason;
         trip.IsNoShow = isNoShow;
@@ -498,7 +498,7 @@ public class TripService : ITripService
                 await NotifyCustomerAsync(trip, "Trip cancelled",
                     "Your driver cancelled the trip.", ct);
                 break;
-            case TripStatus.CancelledByRider when trip.DriverId is Guid driverId:
+            case TripStatus.CancelledByCustomer when trip.DriverId is Guid driverId:
                 await _push.NotifyUserAsync("driver", driverId,
                     new PushMessage("Trip cancelled", "The customer cancelled the trip.", TripData(trip)), ct);
                 break;

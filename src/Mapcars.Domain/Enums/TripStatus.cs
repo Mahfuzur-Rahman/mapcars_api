@@ -11,13 +11,13 @@ public enum TripStatus
     DriverArrived = 2,
     InProgress = 3,
     Completed = 4,
-    CancelledByRider = 5,
+    CancelledByCustomer = 5,
     CancelledByDriver = 6,
 
     /// <summary>
     /// Nobody accepted the request before its search window ran out (see
     /// <c>Application/Dispatch/TripExpiry</c>). Terminal, and distinct from
-    /// <see cref="CancelledByRider"/> on purpose: a customer who taps "cancel"
+    /// <see cref="CancelledByCustomer"/> on purpose: a customer who taps "cancel"
     /// walked away, while this is the platform failing to find anyone — and
     /// only one of those is a supply problem worth measuring.
     /// </summary>

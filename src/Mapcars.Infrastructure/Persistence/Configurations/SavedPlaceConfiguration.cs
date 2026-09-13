@@ -12,7 +12,7 @@ public class SavedPlaceConfiguration : IEntityTypeConfiguration<SavedPlace>
         b.HasKey(p => p.Id);
 
         // snake_case descriptive columns, PascalCase base columns — see database/012_saved_places.sql.
-        b.Property(p => p.CustomerId).HasColumnName("rider_id");
+        b.Property(p => p.CustomerId).HasColumnName("customer_id");
         b.Property(p => p.Label).HasColumnName("label").IsRequired().HasMaxLength(40);
         b.Property(p => p.Address).HasColumnName("address").IsRequired().HasMaxLength(500);
         b.Property(p => p.Lat).HasColumnName("lat");

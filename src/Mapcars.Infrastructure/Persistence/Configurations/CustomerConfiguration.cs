@@ -8,7 +8,7 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
 {
     public void Configure(EntityTypeBuilder<Customer> b)
     {
-        b.ToTable("riders");
+        b.ToTable("customers");
         b.HasKey(r => r.Id);
 
         b.Property(r => r.FullName).HasMaxLength(200);

@@ -26,18 +26,27 @@ namespace Mapcars.Domain.Constants;
 public static class UserTypes
 {
     /// <summary>
-    /// The canonical passenger role. <b>Flipping this single line to
-    /// <c>"customer"</c> is the rename cutover</b> — it must ship in the same
-    /// breath as the migration that rewrites the stored values, never before
-    /// and never after. See <c>031_rider_to_customer.sql</c>.
+    /// The canonical passenger role. This line <b>is</b> the rename cutover: it
+    /// was flipped from <c>"rider"</c> in the same commit as
+    /// <c>031_rider_to_customer.sql</c>, and the two must be deployed together —
+    /// the image and the database are one artifact from that point on.
     /// </summary>
-    public const string Customer = "rider";
+    public const string Customer = "customer";
 
     /// <summary>
-    /// What the passenger role was called before the rename. Identical to
-    /// <see cref="Customer"/> until the cutover, and deliberately kept as its
-    /// own symbol so that every site tolerating the old value can be found with
-    /// a single search and deleted together once no rollback target remains.
+    /// What the passenger role was called before the rename.
+    ///
+    /// <para>
+    /// Still accepted on the way IN — access tokens minted before the cutover
+    /// carry it and stay valid for up to <c>Jwt:ExpiryMinutes</c>, and a client
+    /// build older than the rename still sends it. Never emitted on the way out.
+    /// </para>
+    ///
+    /// <para>
+    /// Kept as its own symbol so every site tolerating the old value can be
+    /// found with a single search and deleted together, once no image older
+    /// than the cutover can be rolled back to (see <c>032</c>).
+    /// </para>
     /// </summary>
     public const string LegacyCustomer = "rider";
 
@@ -49,12 +58,10 @@ public static class UserTypes
     /// constant and treats the comma list as OR.
     ///
     /// <para>
-    /// Before the cutover this expands to <c>"rider,rider"</c>, which is a
-    /// harmless no-op — the framework splits and ORs, so a repeated value
-    /// matches exactly as one would. After the cutover it becomes
-    /// <c>"customer,rider"</c> and starts doing real work, accepting the
-    /// access tokens already in flight (bounded by <c>Jwt:ExpiryMinutes</c>)
-    /// without forcing anyone to sign in again.
+    /// Expands to <c>"customer,rider"</c>. The second value is what keeps the
+    /// cutover invisible: access tokens minted before it carry the old role and
+    /// remain valid for up to <c>Jwt:ExpiryMinutes</c>, so nobody is signed out
+    /// by the deploy. Drop the legacy half with <c>032</c>.
     /// </para>
     /// </summary>
     public const string CustomerRoles = Customer + "," + LegacyCustomer;
@@ -66,9 +73,11 @@ public static class UserTypes
     /// Is this the passenger role, under either spelling?
     ///
     /// <para>
-    /// Use this rather than a <c>switch</c> over <see cref="Customer"/> and
-    /// <see cref="LegacyCustomer"/>: while the two constants hold the same
-    /// value, duplicate case labels are a compile error.
+    /// Prefer this to a <c>switch</c> over <see cref="Customer"/> and
+    /// <see cref="LegacyCustomer"/>. Before the cutover the two held the same
+    /// string and duplicate case labels would not compile; they differ now, but
+    /// routing every check through one predicate is still what makes the legacy
+    /// value removable in one edit.
     /// </para>
     /// </summary>
     public static bool IsCustomer(string? userType) =>
