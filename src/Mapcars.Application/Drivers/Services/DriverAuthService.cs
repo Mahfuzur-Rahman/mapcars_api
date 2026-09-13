@@ -1,12 +1,15 @@
 using Mapcars.Application.Admins.Interfaces;
 using Mapcars.Application.Auth.Interfaces;
 using Mapcars.Application.Common.Dtos;
-using Mapcars.Application.Common.Files;
 using Mapcars.Application.Common.Exceptions;
+using Mapcars.Application.Common.Files;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Application.Drivers.Dtos;
 using Mapcars.Application.Drivers.Interfaces;
 using Mapcars.Application.Geo.Interfaces;
+using Mapcars.Application.Settings.Interfaces;
+using Mapcars.Application.Settings.Models;
+using Mapcars.Application.Settings;
 using Mapcars.Domain.Entities;
 using Mapcars.Domain.Enums;
 using Mapcars.Domain.Exceptions;
@@ -23,6 +26,7 @@ public class DriverAuthService(
     IFileStorageService storage,
     IAppEnvironment env,
     IDriverLocationStore locations,
+    ISettingsStore settings,
     IUnitOfWork uow) : IDriverAuthService
 {
     private const string UserType = "driver";
@@ -216,7 +220,7 @@ public class DriverAuthService(
     {
         var driver = await repo.GetByIdAsync(driverId, ct)
             ?? throw new NotFoundException("Driver", driverId);
-        return BuildProfileResponse(driver);
+        return await BuildProfileAsync(driver, ct);
     }
 
     public async Task<DriverProfileResponse> UpdateProfileAsync(Guid driverId, UpdateDriverProfileRequest req, CancellationToken ct = default)
@@ -265,7 +269,7 @@ public class DriverAuthService(
             driver.MarketingConsent = req.MarketingConsent.Value;
 
         await uow.SaveChangesAsync(ct);
-        return BuildProfileResponse(driver);
+        return await BuildProfileAsync(driver, ct);
     }
 
     public async Task ChangePasswordAsync(Guid driverId, ChangePasswordRequest request, CancellationToken ct = default)
@@ -296,7 +300,7 @@ public class DriverAuthService(
         driver.ProfilePictureContentType = contentType;
 
         await uow.SaveChangesAsync(ct);
-        return BuildProfileResponse(driver);
+        return await BuildProfileAsync(driver, ct);
     }
 
     public async Task<(Stream Content, string ContentType)?> GetProfilePictureAsync(Guid driverId, CancellationToken ct = default)
@@ -330,10 +334,24 @@ public class DriverAuthService(
         // dispatch broadcast can still see this driver as available.
         if (!isOnline) await locations.RemoveAsync(driverId, ct);
 
-        return BuildProfileResponse(driver);
+        return await BuildProfileAsync(driver, ct);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The profile, with the driver's effective payment options resolved against
+    /// the current global settings. Kept separate from the static mapper below so
+    /// that mapper stays a pure projection.
+    /// </summary>
+    private async Task<DriverProfileResponse> BuildProfileAsync(Driver driver, CancellationToken ct)
+    {
+        var payments = await settings.GetAsync<PaymentSettings>(SettingKeys.Payments, ct);
+        var profile = BuildProfileResponse(driver);
+        profile.AcceptsCash = DriverPaymentOptions.AcceptsCash(payments, driver);
+        profile.AcceptsCard = DriverPaymentOptions.AcceptsCard(payments, driver);
+        return profile;
+    }
 
     private static DriverProfileResponse BuildProfileResponse(Driver driver) => new()
     {

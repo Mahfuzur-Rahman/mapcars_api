@@ -33,5 +33,14 @@ public class DriverProfileResponse
     public int RatingCount { get; set; }
     public int CancellationCount { get; set; }
     public int NoShowCount { get; set; }
+
+    /// <summary>
+    /// Which fares this driver can be offered, already resolved: the global
+    /// payment setting narrowed by any per-driver override. The raw override is
+    /// deliberately NOT sent — it is a tri-state whose meaning depends on the
+    /// global setting, and the app has no business reconstructing that rule.
+    /// </summary>
+    public bool AcceptsCash { get; set; } = true;
+    public bool AcceptsCard { get; set; }
     public DateTime CreatedAtUtc { get; set; }
 }

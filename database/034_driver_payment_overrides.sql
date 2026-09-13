@@ -30,16 +30,24 @@ COMMENT ON COLUMN drivers.accepts_cash_override IS
 COMMENT ON COLUMN drivers.accepts_card_override IS
     'Tri-state. NULL = follow the global PaymentSettings.CardEnabled; TRUE/FALSE = explicit per-driver override. The global setting is a ceiling: an override can only narrow it.';
 
--- ─── admin menu: Payment Settings ───────────────────────────────────────────
+-- ─── admin menu: Payment Settings (seeded HIDDEN) ───────────────────────────
 -- Menu id 16 ('Settings', '/admin/settings') was seeded in 001 and has 404'd
--- ever since. Turn it into a PARENT (path NULL, like ids 2/5/9/12) and hang the
--- real page off it — AppShell already renders a null-path node as an expandable
--- group, so this needs no web change beyond the page itself.
-UPDATE menus SET path = NULL WHERE id = 16 AND path = '/admin/settings';
+-- ever since — there has never been a page there. Turn it into a PARENT
+-- (path NULL, like ids 2/5/9/12) with the real page beneath it. AppShell already
+-- renders a null-path node as an expandable group, so no web change is needed
+-- beyond the page itself.
+--
+-- BOTH ROWS ARE SEEDED INACTIVE, and that is the point of splitting this from
+-- 035. GetMenusForAdminAsync filters on IsActive, so nothing appears in the
+-- sidebar until 035 runs. This script is therefore safe to apply now, ahead of
+-- the code: without it the new row would be a dead link for however long passes
+-- between the migration and the deploy — and as a bonus, deactivating 16 finally
+-- retires the 404 it has been serving since 001.
+UPDATE menus SET path = NULL, is_active = FALSE WHERE id = 16;
 
 -- Keyed on path so re-running never duplicates (the 016 pattern).
 INSERT INTO menus (name, path, icon, parent_id, sort_order, is_active)
-SELECT 'Payment Settings', '/admin/settings/payments', 'credit-card', 16, 1, TRUE
+SELECT 'Payment Settings', '/admin/settings/payments', 'credit-card', 16, 1, FALSE
 WHERE NOT EXISTS (SELECT 1 FROM menus WHERE path = '/admin/settings/payments');
 
 -- SuperAdmin only, mirroring how '/admin/fare' is gated: turning card payments
