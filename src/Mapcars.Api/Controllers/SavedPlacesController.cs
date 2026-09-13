@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Mapcars.Application.SavedPlaces.Dtos;
 using Mapcars.Application.SavedPlaces.Interfaces;
+using Mapcars.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,7 +14,7 @@ namespace Mapcars.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/saved-places")]
-[Authorize(Roles = "rider")]
+[Authorize(Roles = UserTypes.CustomerRoles)]
 public class SavedPlacesController : ControllerBase
 {
     private readonly ISavedPlaceService _places;

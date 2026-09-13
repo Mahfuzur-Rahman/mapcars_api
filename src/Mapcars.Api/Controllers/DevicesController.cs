@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Mapcars.Application.Notifications.Dtos;
 using Mapcars.Application.Notifications.Interfaces;
+using Mapcars.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,7 +14,7 @@ namespace Mapcars.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/devices")]
-[Authorize(Roles = "rider,driver")]
+[Authorize(Roles = UserTypes.CustomerOrDriverRoles)]
 public class DevicesController(IPushService push) : ControllerBase
 {
     [HttpPost("register")]
@@ -36,7 +37,7 @@ public class DevicesController(IPushService push) : ControllerBase
 
     private bool TryGetCaller(out string userType, out Guid userId)
     {
-        userType = User.IsInRole("driver") ? "driver" : "rider";
+        userType = User.IsInRole(UserTypes.Driver) ? UserTypes.Driver : UserTypes.Customer;
         return Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
     }
 }

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Mapcars.Application.Documents.Dtos;
 using Mapcars.Application.Documents.Interfaces;
+using Mapcars.Domain.Constants;
 using Mapcars.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -88,7 +89,7 @@ public class DocumentsController : ControllerBase
 
     private (string UserType, Guid? UserId) CurrentUser()
     {
-        var userType = User.FindFirstValue("user_type") ?? string.Empty;
+        var userType = UserTypes.Canonical(User.FindFirstValue("user_type"));
         var idStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return (userType, Guid.TryParse(idStr, out var id) ? id : null);
     }

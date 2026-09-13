@@ -1,4 +1,5 @@
 using Mapcars.Application.Notifications.Interfaces;
+using Mapcars.Domain.Constants;
 using Mapcars.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -36,10 +37,30 @@ public class DeviceTokenRepository(AppDbContext db) : IDeviceTokenRepository
         db.DeviceTokens.RemoveRange(rows);
     }
 
+    /// <summary>
+    /// Tokens for one user, accepting either passenger spelling for the length of
+    /// the Rider -> Customer rename.
+    ///
+    /// <para>
+    /// The tolerance matters more here than almost anywhere else, because this
+    /// filter fails <b>silently</b>: rows written before the migration still hold
+    /// the old value, and if the lookup stops matching them, <c>PushService</c>
+    /// simply finds no tokens and returns. Every push to that user stops — no
+    /// exception, no error status, nothing in the logs above debug. You would
+    /// hear about it from a user, days later.
+    /// </para>
+    /// </summary>
     public async Task<IReadOnlyList<string>> ListTokensForUserAsync(
         string userType, Guid userId, CancellationToken ct = default)
-        => await db.DeviceTokens
-            .Where(t => t.UserType == userType && t.UserId == userId)
+    {
+        // Translates to IN (...), so the (user_type, user_id) index still applies.
+        var accepted = UserTypes.IsCustomer(userType)
+            ? new[] { UserTypes.Customer, UserTypes.LegacyCustomer }
+            : new[] { userType };
+
+        return await db.DeviceTokens
+            .Where(t => accepted.Contains(t.UserType) && t.UserId == userId)
             .Select(t => t.Token)
             .ToListAsync(ct);
+    }
 }

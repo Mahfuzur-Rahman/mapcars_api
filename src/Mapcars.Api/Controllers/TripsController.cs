@@ -3,6 +3,7 @@ using Mapcars.Application.Pricing.Dtos;
 using Mapcars.Application.Pricing.Interfaces;
 using Mapcars.Application.Trips.Dtos;
 using Mapcars.Application.Trips.Interfaces;
+using Mapcars.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,12 +11,12 @@ namespace Mapcars.Api.Controllers;
 
 /// <summary>
 /// Rider trips: history, an anonymous fare quote, and booking. Rider-scoped
-/// actions require a rider token (see [Authorize(Roles = "rider")]); quoting is
+/// actions require a rider token (see [Authorize(Roles = UserTypes.CustomerRoles)]); quoting is
 /// open so the choose-ride screen can price a route before/without sign-in.
 /// </summary>
 [ApiController]
 [Route("api/v1/trips")]
-[Authorize(Roles = "rider")]
+[Authorize(Roles = UserTypes.CustomerRoles)]
 public class TripsController : ControllerBase
 {
     private readonly ITripService _trips;

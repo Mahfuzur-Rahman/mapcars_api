@@ -6,6 +6,7 @@ using Mapcars.Application.Common.Files;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Application.Riders.Dtos;
 using Mapcars.Application.Riders.Interfaces;
+using Mapcars.Domain.Constants;
 using Mapcars.Domain.Entities;
 using Mapcars.Domain.Exceptions;
 
@@ -22,7 +23,7 @@ public class RiderAuthService(
     IAppEnvironment env,
     IUnitOfWork uow) : IRiderAuthService
 {
-    private const string UserType = "rider";
+    private const string UserType = UserTypes.Customer;
 
     // The OTP is only ever revealed to the caller in local Development (a
     // convenience so devs can log in without a live SMS/email provider). In

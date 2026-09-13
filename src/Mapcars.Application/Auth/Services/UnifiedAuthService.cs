@@ -6,6 +6,7 @@ using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Application.Drivers.Interfaces;
 using Mapcars.Application.Riders.Interfaces;
+using Mapcars.Domain.Constants;
 using Mapcars.Domain.Entities;
 using Mapcars.Domain.Exceptions;
 
@@ -47,16 +48,22 @@ public class UnifiedAuthService(
         // account they mean, unless they already told us via LoginAs.
         if (riderMatches && driverMatches)
         {
-            return request.LoginAs switch
+            // LoginAs is accepted under EITHER passenger spelling: a client build
+            // that predates the rename still sends the old word, and rejecting it
+            // would lock those users out of the unified sign-in entirely.
+            if (UserTypes.IsCustomer(request.LoginAs))
+                return await BuildUserResponseAsync(rider!, UserTypes.Customer, ct);
+            if (UserTypes.IsDriver(request.LoginAs))
+                return await BuildUserResponseAsync(driver!, UserTypes.Driver, ct);
+            return new UnifiedLoginResponse
             {
-                "rider" => await BuildUserResponseAsync(rider!, "rider", ct),
-                "driver" => await BuildUserResponseAsync(driver!, "driver", ct),
-                _ => new UnifiedLoginResponse { RequiresChoice = true, AvailableUserTypes = ["rider", "driver"] },
+                RequiresChoice = true,
+                AvailableUserTypes = [UserTypes.Customer, UserTypes.Driver],
             };
         }
 
-        if (riderMatches) return await BuildUserResponseAsync(rider!, "rider", ct);
-        if (driverMatches) return await BuildUserResponseAsync(driver!, "driver", ct);
+        if (riderMatches) return await BuildUserResponseAsync(rider!, UserTypes.Customer, ct);
+        if (driverMatches) return await BuildUserResponseAsync(driver!, UserTypes.Driver, ct);
 
         // Deliberately generic — never reveal which table(s) the email exists
         // in, and never reveal *whose* password was wrong if it happens to
@@ -105,30 +112,36 @@ public class UnifiedAuthService(
         // 3. If both accounts exist, handle role choice
         if (rider is not null && driver is not null)
         {
-            return request.LoginAs switch
+            // LoginAs is accepted under EITHER passenger spelling: a client build
+            // that predates the rename still sends the old word, and rejecting it
+            // would lock those users out of the unified sign-in entirely.
+            if (UserTypes.IsCustomer(request.LoginAs))
+                return await BuildUserResponseAsync(rider, UserTypes.Customer, ct);
+            if (UserTypes.IsDriver(request.LoginAs))
+                return await BuildUserResponseAsync(driver, UserTypes.Driver, ct);
+            return new UnifiedLoginResponse
             {
-                "rider" => await BuildUserResponseAsync(rider, "rider", ct),
-                "driver" => await BuildUserResponseAsync(driver, "driver", ct),
-                _ => new UnifiedLoginResponse { RequiresChoice = true, AvailableUserTypes = ["rider", "driver"] },
+                RequiresChoice = true,
+                AvailableUserTypes = [UserTypes.Customer, UserTypes.Driver],
             };
         }
 
         if (driver is not null)
         {
-            if (request.LoginAs == "rider")
+            if (UserTypes.IsCustomer(request.LoginAs))
             {
                 throw new UnauthorizedException("This Google account is registered as a Driver. Please sign in as a driver.");
             }
-            return await BuildUserResponseAsync(driver, "driver", ct);
+            return await BuildUserResponseAsync(driver, UserTypes.Driver, ct);
         }
 
         if (rider is not null)
         {
-            if (request.LoginAs == "driver")
+            if (UserTypes.IsDriver(request.LoginAs))
             {
                 throw new UnauthorizedException("This Google account is registered as a Customer. Please sign in as a customer, or register a driver account.");
             }
-            return await BuildUserResponseAsync(rider, "rider", ct);
+            return await BuildUserResponseAsync(rider, UserTypes.Customer, ct);
         }
 
         // 4. Neither exists
@@ -138,7 +151,7 @@ public class UnifiedAuthService(
                 "We couldn't find a Mapcars account for that Google account. Please sign up first.");
         }
 
-        if (request.LoginAs == "driver")
+        if (UserTypes.IsDriver(request.LoginAs))
         {
             var newDriver = new Driver
             {
@@ -163,7 +176,7 @@ public class UnifiedAuthService(
             };
             await riderRepo.AddAsync(newRider, ct);
             await uow.SaveChangesAsync(ct);
-            return await BuildUserResponseAsync(newRider, "rider", ct);
+            return await BuildUserResponseAsync(newRider, UserTypes.Customer, ct);
         }
     }
 

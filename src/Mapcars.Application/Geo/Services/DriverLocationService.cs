@@ -1,10 +1,11 @@
 using Mapcars.Application.Common.Exceptions;
-using Mapcars.Application.Drivers;
 using Mapcars.Application.Drivers.Interfaces;
+using Mapcars.Application.Drivers;
 using Mapcars.Application.Geo.Dtos;
 using Mapcars.Application.Geo.Interfaces;
 using Mapcars.Application.Realtime.Interfaces;
 using Mapcars.Application.Trips.Interfaces;
+using Mapcars.Domain.Constants;
 using Mapcars.Domain.Enums;
 using Mapcars.Domain.Exceptions;
 
@@ -101,7 +102,7 @@ public class DriverLocationService : IDriverLocationService
 
         // Same rule as the trip endpoints: only this trip's two parties, and a
         // non-party gets a 404 rather than a 403 (don't confirm the trip exists).
-        var isRider = callerType == "rider" && trip.RiderId == callerId;
+        var isRider = callerType == UserTypes.Customer && trip.RiderId == callerId;
         var isDriver = callerType == "driver" && trip.DriverId == callerId;
         if (!isRider && !isDriver) throw new NotFoundException("Trip", tripId);
 

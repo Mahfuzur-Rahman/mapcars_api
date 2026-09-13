@@ -3,6 +3,7 @@ using Mapcars.Application.Geo.Dtos;
 using Mapcars.Application.Geo.Interfaces;
 using Mapcars.Application.Trips.Dtos;
 using Mapcars.Application.Trips.Interfaces;
+using Mapcars.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -99,7 +100,7 @@ public class TripActionsController : ControllerBase
 
     private (string UserType, Guid? UserId) CurrentUser()
     {
-        var userType = User.FindFirstValue("user_type") ?? User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+        var userType = UserTypes.Canonical(User.FindFirstValue("user_type") ?? User.FindFirstValue(ClaimTypes.Role));
         var idStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
         return (userType, Guid.TryParse(idStr, out var id) ? id : null);
     }

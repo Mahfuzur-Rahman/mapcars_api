@@ -6,6 +6,7 @@ using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Application.Drivers.Interfaces;
 using Mapcars.Application.Riders.Interfaces;
+using Mapcars.Domain.Constants;
 using Mapcars.Domain.Entities;
 
 namespace Mapcars.Application.Auth.Services;
@@ -143,28 +144,36 @@ public class RefreshTokenService : IRefreshTokenService
     /// </summary>
     private async Task<string> MintAccessTokenAsync(Guid userId, string userType, CancellationToken ct)
     {
-        switch (userType)
+        // if/else rather than a switch: UserTypes.Customer and .LegacyCustomer hold
+        // the same string until the rename cutover, and duplicate case labels are a
+        // compile error. This is also the method that bounds the legacy window — it
+        // reads the PERSISTED user_type and mints a fresh token with whatever the
+        // deployed code calls that role, so once the column is rewritten every
+        // renewal emits the new value and only in-flight access tokens carry the old.
+        if (UserTypes.IsCustomer(userType))
         {
-            case "rider":
-                var rider = await _riders.GetByIdAsync(userId, ct)
-                    ?? throw new UnauthorizedException("This account is no longer available.");
-                return _jwt.GenerateUserToken(rider.Id, rider.Email ?? rider.PhoneNumber, "rider");
-
-            case "driver":
-                var driver = await _drivers.GetByIdAsync(userId, ct)
-                    ?? throw new UnauthorizedException("This account is no longer available.");
-                return _jwt.GenerateUserToken(driver.Id, driver.Email ?? driver.PhoneNumber, "driver");
-
-            case "admin":
-                // WithRole: the admin JWT carries a role claim, and the whole admin
-                // portal authorises off it.
-                var admin = await _admins.GetByIdWithRoleAsync(userId, ct)
-                    ?? throw new UnauthorizedException("This account is no longer available.");
-                return _jwt.GenerateToken(admin);
-
-            default:
-                throw new UnauthorizedException("Your session has expired. Please sign in again.");
+            var rider = await _riders.GetByIdAsync(userId, ct)
+                ?? throw new UnauthorizedException("This account is no longer available.");
+            return _jwt.GenerateUserToken(rider.Id, rider.Email ?? rider.PhoneNumber, UserTypes.Customer);
         }
+
+        if (UserTypes.IsDriver(userType))
+        {
+            var driver = await _drivers.GetByIdAsync(userId, ct)
+                ?? throw new UnauthorizedException("This account is no longer available.");
+            return _jwt.GenerateUserToken(driver.Id, driver.Email ?? driver.PhoneNumber, UserTypes.Driver);
+        }
+
+        if (string.Equals(userType, UserTypes.Admin, StringComparison.OrdinalIgnoreCase))
+        {
+            // WithRole: the admin JWT carries a role claim, and the whole admin
+            // portal authorises off it.
+            var admin = await _admins.GetByIdWithRoleAsync(userId, ct)
+                ?? throw new UnauthorizedException("This account is no longer available.");
+            return _jwt.GenerateToken(admin);
+        }
+
+        throw new UnauthorizedException("Your session has expired. Please sign in again.");
     }
 
     /// <summary>256 bits from a cryptographic RNG, url-safe. Not a JWT and not

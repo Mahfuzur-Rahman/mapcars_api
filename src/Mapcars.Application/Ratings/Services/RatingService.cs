@@ -6,6 +6,7 @@ using Mapcars.Application.Ratings.Interfaces;
 using Mapcars.Application.Ratings.Mapping;
 using Mapcars.Application.Riders.Interfaces;
 using Mapcars.Application.Trips.Interfaces;
+using Mapcars.Domain.Constants;
 using Mapcars.Domain.Entities;
 using Mapcars.Domain.Enums;
 using Mapcars.Domain.Exceptions;
@@ -57,7 +58,7 @@ public class RatingService : IRatingService
         await _ratings.AddAsync(rating, ct);
 
         // The rater is rating the OTHER party on this trip.
-        if (callerType == "rider")
+        if (callerType == UserTypes.Customer)
         {
             if (trip.DriverId is { } driverId)
             {
@@ -89,7 +90,7 @@ public class RatingService : IRatingService
     {
         var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
 
-        var isParticipant = (callerType == "rider" && trip.RiderId == callerId)
+        var isParticipant = (callerType == UserTypes.Customer && trip.RiderId == callerId)
             || (callerType == "driver" && trip.DriverId == callerId);
         if (!isParticipant)
             throw new NotFoundException("Trip", tripId);

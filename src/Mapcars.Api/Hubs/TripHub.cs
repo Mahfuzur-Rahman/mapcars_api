@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Trips.Interfaces;
+using Mapcars.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
@@ -44,7 +45,7 @@ public class TripHub : Hub
     {
         if (!Guid.TryParse(tripId, out var id)) return;
 
-        var userType = Context.User?.FindFirstValue("user_type") ?? string.Empty;
+        var userType = UserTypes.Canonical(Context.User?.FindFirstValue("user_type"));
         var userIdStr = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
         if (!Guid.TryParse(userIdStr, out var userId)) return;
 

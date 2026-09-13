@@ -7,6 +7,7 @@ using Mapcars.Application.Notifications.Dtos;
 using Mapcars.Application.Notifications.Interfaces;
 using Mapcars.Application.Realtime.Interfaces;
 using Mapcars.Application.Trips.Interfaces;
+using Mapcars.Domain.Constants;
 using Mapcars.Domain.Entities;
 
 namespace Mapcars.Application.Messages.Services;
@@ -96,8 +97,8 @@ public class MessageService : IMessageService
     /// </remarks>
     private void NotifyCounterpartAsync(Trip trip, string senderType, string content, CancellationToken ct)
     {
-        var isFromRider = senderType == "rider";
-        var recipientType = isFromRider ? "driver" : "rider";
+        var isFromRider = senderType == UserTypes.Customer;
+        var recipientType = isFromRider ? UserTypes.Driver : UserTypes.Customer;
         var recipientId = isFromRider ? trip.DriverId : trip.RiderId;
         if (recipientId is null || recipientId == Guid.Empty) return;
 
@@ -119,7 +120,7 @@ public class MessageService : IMessageService
     {
         var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
 
-        var isParticipant = (callerType == "rider" && trip.RiderId == callerId)
+        var isParticipant = (callerType == UserTypes.Customer && trip.RiderId == callerId)
             || (callerType == "driver" && trip.DriverId == callerId);
         if (!isParticipant)
             throw new NotFoundException("Trip", tripId);

@@ -1,4 +1,5 @@
 using Mapcars.Application.Auth.Interfaces;
+using Mapcars.Domain.Constants;
 using Mapcars.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,14 +14,31 @@ public class RefreshTokenRepository(AppDbContext db) : IRefreshTokenRepository
     public Task<RefreshToken?> GetByHashAsync(string tokenHash, CancellationToken ct = default)
         => db.RefreshTokens.FirstOrDefaultAsync(t => t.TokenHash == tokenHash, ct);
 
+    /// <summary>
+    /// A user's live refresh tokens, accepting either passenger spelling for the
+    /// length of the Rider -> Customer rename.
+    ///
+    /// <para>
+    /// This backs <c>RevokeAllAsync</c>, the token-theft kill switch. Missing a
+    /// row here does not throw — it just means a sibling session survives a
+    /// revocation that was supposed to end every session the user has, which is
+    /// exactly the case the kill switch exists for.
+    /// </para>
+    /// </summary>
     public async Task<IReadOnlyList<RefreshToken>> ListActiveForUserAsync(
         Guid userId, string userType, CancellationToken ct = default)
-        => await db.RefreshTokens
+    {
+        var accepted = UserTypes.IsCustomer(userType)
+            ? new[] { UserTypes.Customer, UserTypes.LegacyCustomer }
+            : new[] { userType };
+
+        return await db.RefreshTokens
             .Where(t => t.UserId == userId
-                     && t.UserType == userType
+                     && accepted.Contains(t.UserType)
                      && t.RevokedAtUtc == null
                      && t.ExpiresAtUtc > DateTime.UtcNow)
             .ToListAsync(ct);
+    }
 
     public async Task<int> PurgeExpiredAsync(int olderThanDays, CancellationToken ct = default)
     {

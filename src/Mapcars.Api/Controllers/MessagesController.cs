@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Mapcars.Application.Messages.Dtos;
 using Mapcars.Application.Messages.Interfaces;
+using Mapcars.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -45,7 +46,7 @@ public class MessagesController : ControllerBase
 
     private (string UserType, Guid? UserId) CurrentUser()
     {
-        var userType = User.FindFirstValue("user_type") ?? string.Empty;
+        var userType = UserTypes.Canonical(User.FindFirstValue("user_type"));
         var idStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return (userType, Guid.TryParse(idStr, out var id) ? id : null);
     }

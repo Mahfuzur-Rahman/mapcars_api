@@ -1,10 +1,11 @@
-using Mapcars.Application.Dispatch;
 using Mapcars.Application.Dispatch.Interfaces;
+using Mapcars.Application.Dispatch;
 using Mapcars.Application.Notifications.Dtos;
 using Mapcars.Application.Notifications.Interfaces;
 using Mapcars.Application.Realtime.Interfaces;
 using Mapcars.Application.Trips.Interfaces;
 using Mapcars.Application.Trips.Mapping;
+using Mapcars.Domain.Constants;
 using Mapcars.Domain.Entities;
 using Mapcars.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
@@ -201,7 +202,7 @@ public sealed class DispatchLifecycleService : BackgroundService
         // The one that actually matters: a rider whose app is in their pocket is
         // exactly the rider who otherwise loses the ride without being asked.
         await SafelyAsync(
-            () => push.NotifyUserAsync("rider", trip.RiderId, new PushMessage(
+            () => push.NotifyUserAsync(UserTypes.Customer, trip.RiderId, new PushMessage(
                 "Still looking for a driver",
                 "Nobody has taken your ride yet. Tap to keep searching.",
                 new Dictionary<string, string>
@@ -252,7 +253,7 @@ public sealed class DispatchLifecycleService : BackgroundService
             // the prompt above, which is why the pause copy can say it — but
             // this one fires after the trip is closed, when there is nothing
             // left on that screen to tap.
-            () => push.NotifyUserAsync("rider", trip.RiderId, new PushMessage(
+            () => push.NotifyUserAsync(UserTypes.Customer, trip.RiderId, new PushMessage(
                 "No drivers found",
                 "We couldn't find a driver for your ride. Book again when you're ready.",
                 new Dictionary<string, string>

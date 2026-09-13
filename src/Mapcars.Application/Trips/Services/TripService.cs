@@ -1,21 +1,22 @@
 using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Interfaces;
-using Mapcars.Application.Dispatch;
 using Mapcars.Application.Dispatch.Interfaces;
 using Mapcars.Application.Dispatch.Services;
-using Mapcars.Application.Drivers;
+using Mapcars.Application.Dispatch;
 using Mapcars.Application.Drivers.Interfaces;
+using Mapcars.Application.Drivers;
 using Mapcars.Application.Notifications.Dtos;
 using Mapcars.Application.Notifications.Interfaces;
-using Mapcars.Application.Pricing;
 using Mapcars.Application.Pricing.Dtos;
 using Mapcars.Application.Pricing.Interfaces;
+using Mapcars.Application.Pricing;
 using Mapcars.Application.Realtime.Interfaces;
 using Mapcars.Application.Riders.Interfaces;
 using Mapcars.Application.Trips.Dtos;
 using Mapcars.Application.Trips.Interfaces;
 using Mapcars.Application.Trips.Mapping;
 using Mapcars.Application.Vehicles.Interfaces;
+using Mapcars.Domain.Constants;
 using Mapcars.Domain.Entities;
 using Mapcars.Domain.Enums;
 using Mapcars.Domain.Exceptions;
@@ -289,7 +290,7 @@ public class TripService : ITripService
     {
         var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
 
-        var isRider = callerType == "rider" && trip.RiderId == callerId;
+        var isRider = callerType == UserTypes.Customer && trip.RiderId == callerId;
         var isDriver = callerType == "driver" && trip.DriverId == callerId;
         if (!isRider && !isDriver)
             throw new NotFoundException("Trip", tripId);
@@ -340,7 +341,7 @@ public class TripService : ITripService
     {
         var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
 
-        var isRider = callerType == "rider" && trip.RiderId == callerId;
+        var isRider = callerType == UserTypes.Customer && trip.RiderId == callerId;
         var isDriver = callerType == "driver" && trip.DriverId == callerId;
         if (!isRider && !isDriver) throw new NotFoundException("Trip", tripId); // don't leak others' trips
 
@@ -368,7 +369,7 @@ public class TripService : ITripService
     {
         var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
 
-        var isRider = callerType == "rider" && trip.RiderId == callerId;
+        var isRider = callerType == UserTypes.Customer && trip.RiderId == callerId;
         var isDriver = callerType == "driver" && trip.DriverId == callerId;
         var isAdmin = callerType == "admin" || callerType == "SuperAdmin" || callerType == "Operations" || callerType == "Support";
         if (!isRider && !isDriver && !isAdmin) throw new NotFoundException("Trip", tripId);
@@ -505,7 +506,7 @@ public class TripService : ITripService
     }
 
     private Task NotifyRiderAsync(Trip trip, string title, string body, CancellationToken ct)
-        => _push.NotifyUserAsync("rider", trip.RiderId, new PushMessage(title, body, TripData(trip)), ct);
+        => _push.NotifyUserAsync(UserTypes.Customer, trip.RiderId, new PushMessage(title, body, TripData(trip)), ct);
 
     private static IReadOnlyDictionary<string, string> TripData(Trip trip) => new Dictionary<string, string>
     {

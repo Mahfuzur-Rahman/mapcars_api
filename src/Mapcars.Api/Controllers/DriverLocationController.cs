@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Mapcars.Application.Geo.Dtos;
 using Mapcars.Application.Geo.Interfaces;
+using Mapcars.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -42,7 +43,7 @@ public class DriverLocationController : ControllerBase
 
     /// <summary>Online drivers near a point, nearest first.</summary>
     [HttpGet("nearby")]
-    [Authorize(Roles = "rider")]
+    [Authorize(Roles = UserTypes.CustomerRoles)]
     [ProducesResponseType(typeof(IReadOnlyList<NearbyDriverResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<NearbyDriverResponse>>> Nearby(
         [FromQuery] double lat,
