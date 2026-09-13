@@ -36,6 +36,15 @@ public class Driver : BaseEntity
 
     public int CancellationCount { get; set; }
     public int NoShowCount { get; set; }
+    /// <summary>
+    /// Per-driver payment overrides. NULL means "follow the global setting" — the
+    /// tri-state is the point, so "never configured" stays distinguishable from
+    /// "deliberately switched off". The global setting is a ceiling: an override
+    /// can only narrow it. See Application/Settings/DriverPaymentOptions.
+    /// </summary>
+    public bool? AcceptsCashOverride { get; set; }
+    public bool? AcceptsCardOverride { get; set; }
+
     public bool IsOnline { get; set; }
     public DateTime? LastOnlineAtUtc { get; set; }
     public decimal? AverageRating { get; set; }

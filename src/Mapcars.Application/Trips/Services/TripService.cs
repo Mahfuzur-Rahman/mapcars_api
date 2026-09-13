@@ -12,6 +12,9 @@ using Mapcars.Application.Pricing.Interfaces;
 using Mapcars.Application.Pricing;
 using Mapcars.Application.Realtime.Interfaces;
 using Mapcars.Application.Customers.Interfaces;
+using Mapcars.Application.Settings;
+using Mapcars.Application.Settings.Interfaces;
+using Mapcars.Application.Settings.Models;
 using Mapcars.Application.Trips.Dtos;
 using Mapcars.Application.Trips.Interfaces;
 using Mapcars.Application.Trips.Mapping;
@@ -40,6 +43,7 @@ public class TripService : ITripService
     private readonly ITripNotifier _notifier;
     private readonly IDispatchService _dispatch;
     private readonly IPushService _push;
+    private readonly ISettingsStore _settings;
 
     public TripService(
         ITripRepository trips,
@@ -50,7 +54,8 @@ public class TripService : ITripService
         IUnitOfWork uow,
         ITripNotifier notifier,
         IDispatchService dispatch,
-        IPushService push)
+        IPushService push,
+        ISettingsStore settings)
     {
         _trips = trips;
         _customers = customers;
@@ -61,6 +66,7 @@ public class TripService : ITripService
         _notifier = notifier;
         _dispatch = dispatch;
         _push = push;
+        _settings = settings;
     }
 
     public async Task<IReadOnlyList<TripResponse>> ListForCustomerAsync(Guid customerId, CancellationToken ct = default)
@@ -93,10 +99,18 @@ public class TripService : ITripService
         await EnsureCanReceiveRequestsAsync(driverId, ct);
         var vehicle = await _vehicles.GetByDriverAsync(driverId, ct);
 
+        // Filter the board by payment method as well as tier. Without this a
+        // card-only driver would watch cash jobs appear and then be refused on
+        // accept, which reads as the platform being broken rather than as a
+        // setting on their account.
+        var driver = await _drivers.GetByIdAsync(driverId, ct);
+        var payments = await _settings.GetAsync<PaymentSettings>(SettingKeys.Payments, ct);
+
         var now = DateTime.UtcNow;
         var trips = await _trips.ListAvailableAsync(ct);
         return trips
             .Where(t => vehicle is null || DispatchService.IsTierCompatible(vehicle.Tier, t.Tier))
+            .Where(t => driver is null || DriverPaymentOptions.Accepts(payments, driver, t.PaymentMethod))
             .Select(t => (trip: t, meters: FareCalculator.HaversineMeters(lat, lng, t.PickupLat, t.PickupLng)))
             // Each request reaches as far as its own age allows — the same rule
             // the push obeys, so a job broadcast to a distant driver survives
@@ -123,6 +137,27 @@ public class TripService : ITripService
 
         if (!driver.IsOnline)
             throw new DomainException("Go online to see trip requests.");
+    }
+
+    /// <summary>
+    /// The accept-side half of the payment-method rule.
+    ///
+    /// <para>
+    /// <c>DispatchService.BroadcastAsync</c> already keeps a cash job off a
+    /// card-only driver's board, and so does the board query — but a board is a
+    /// cache. A driver may still be holding a card pushed before an admin changed
+    /// their options. Checked BEFORE the atomic claim, so a driver who cannot take
+    /// the fare never assigns it and then has to be unwound.
+    /// </para>
+    /// </summary>
+    private async Task EnsureCanTakePaymentMethodAsync(Guid driverId, Guid tripId, CancellationToken ct)
+    {
+        var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
+        var driver = await _drivers.GetByIdAsync(driverId, ct) ?? throw new NotFoundException("Driver", driverId);
+        var payments = await _settings.GetAsync<PaymentSettings>(SettingKeys.Payments, ct);
+
+        if (!DriverPaymentOptions.Accepts(payments, driver, trip.PaymentMethod))
+            throw new DomainException(DriverPaymentOptions.BlockedMessage(trip.PaymentMethod));
     }
 
     public async Task<TripResponse> CreateAsync(Guid customerId, CreateTripRequest req, CancellationToken ct = default)
@@ -234,6 +269,7 @@ public class TripService : ITripService
     public async Task<TripResponse> AcceptAsync(Guid driverId, Guid tripId, CancellationToken ct = default)
     {
         await EnsureCanReceiveRequestsAsync(driverId, ct);
+        await EnsureCanTakePaymentMethodAsync(driverId, tripId, ct);
 
         // Broadcast model — first-come wins. The atomic Requested→DriverAssigned is
         // the single guard against two drivers grabbing the same trip; false means

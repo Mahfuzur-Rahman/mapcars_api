@@ -38,6 +38,11 @@ public class AppDbContext : DbContext, IUnitOfWork
     // Redis is the hot cache; this table is the durable source of truth.
     public DbSet<FareChartRecord> FareCharts => Set<FareChartRecord>();
 
+    // Generic key -> JSONB settings, versioned (database/033_app_settings.sql).
+    // Separate from fare_charts on purpose: a payment toggle must not mint a
+    // pricing version.
+    public DbSet<AppSettingRecord> AppSettings => Set<AppSettingRecord>();
+
     // Admin auth (database-first — tables created via database/001_admin_auth.sql)
     public DbSet<Admin> Admins => Set<Admin>();
     public DbSet<Role> Roles => Set<Role>();

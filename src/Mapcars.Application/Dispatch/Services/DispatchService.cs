@@ -4,6 +4,9 @@ using Mapcars.Application.Geo.Interfaces;
 using Mapcars.Application.Notifications.Dtos;
 using Mapcars.Application.Notifications.Interfaces;
 using Mapcars.Application.Realtime.Interfaces;
+using Mapcars.Application.Settings;
+using Mapcars.Application.Settings.Interfaces;
+using Mapcars.Application.Settings.Models;
 using Mapcars.Application.Trips.Interfaces;
 using Mapcars.Application.Trips.Mapping;
 using Mapcars.Application.Vehicles.Interfaces;
@@ -25,6 +28,7 @@ public class DispatchService : IDispatchService
     /// </summary>
     private const int MaxDrivers = 50;
 
+    private readonly ISettingsStore _settings;
     private readonly IDriverLocationStore _locations;
     private readonly IDriverRepository _drivers;
     private readonly IVehicleRepository _vehicles;
@@ -38,7 +42,8 @@ public class DispatchService : IDispatchService
         IVehicleRepository vehicles,
         ITripRepository trips,
         ITripNotifier notifier,
-        IPushService push)
+        IPushService push,
+        ISettingsStore settings)
     {
         _locations = locations;
         _drivers = drivers;
@@ -46,6 +51,7 @@ public class DispatchService : IDispatchService
         _trips = trips;
         _notifier = notifier;
         _push = push;
+        _settings = settings;
     }
 
     public async Task BroadcastAsync(Trip trip, double? radiusMeters = null, CancellationToken ct = default)
@@ -55,12 +61,23 @@ public class DispatchService : IDispatchService
             trip.PickupLat, trip.PickupLng, radius, MaxDrivers, ct);
         if (nearby.Count == 0) return;
 
+        // Read once, outside the loop: the settings store is memory-cached, but the
+        // trip's payment method does not change per candidate either.
+        var payments = await _settings.GetAsync<PaymentSettings>(SettingKeys.Payments, ct);
+
         var response = trip.ToResponse();
         foreach (var candidate in nearby)
         {
             var driver = await _drivers.GetByIdAsync(candidate.DriverId, ct);
             if (driver is null || driver.Status != DriverStatus.Approved || !driver.IsOnline) continue;
             if (await _trips.HasActiveTripAsync(candidate.DriverId, ct)) continue; // don't ping busy drivers
+
+            // Don't offer a cash job to a card-only driver (or vice versa). Silently
+            // skipping is right here — this is a broadcast, and a driver who cannot
+            // take the fare simply is not a candidate. The accept path re-checks,
+            // because a driver could already be holding a card from before an admin
+            // changed their options.
+            if (!DriverPaymentOptions.Accepts(payments, driver, trip.PaymentMethod)) continue;
 
             var vehicle = await _vehicles.GetByDriverAsync(candidate.DriverId, ct);
             if (vehicle is not null && !IsTierCompatible(vehicle.Tier, trip.Tier)) continue;

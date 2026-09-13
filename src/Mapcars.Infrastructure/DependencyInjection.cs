@@ -4,19 +4,20 @@ using Google.Apis.Auth.OAuth2;
 using Mapcars.Application.Admins.Interfaces;
 using Mapcars.Application.Auth.Interfaces;
 using Mapcars.Application.Common.Interfaces;
-using Mapcars.Application.Notifications.Interfaces;
+using Mapcars.Application.Customers.Interfaces;
 using Mapcars.Application.Documents.Interfaces;
 using Mapcars.Application.Drivers.Interfaces;
-using Mapcars.Application.ErrorLogs.Interfaces;
 using Mapcars.Application.Emails.Interfaces;
+using Mapcars.Application.ErrorLogs.Interfaces;
 using Mapcars.Application.Geo.Interfaces;
+using Mapcars.Application.Messages.Interfaces;
+using Mapcars.Application.Notifications.Interfaces;
 using Mapcars.Application.Payments.Interfaces;
 using Mapcars.Application.Posters.Interfaces;
 using Mapcars.Application.Pricing.Interfaces;
 using Mapcars.Application.Ratings.Interfaces;
-using Mapcars.Application.Messages.Interfaces;
-using Mapcars.Application.Customers.Interfaces;
 using Mapcars.Application.SavedPlaces.Interfaces;
+using Mapcars.Application.Settings.Interfaces;
 using Mapcars.Application.Trips.Interfaces;
 using Mapcars.Application.Vehicles.Interfaces;
 using Mapcars.Infrastructure.Dispatch;
@@ -24,19 +25,20 @@ using Mapcars.Infrastructure.Geo;
 using Mapcars.Infrastructure.Notifications;
 using Mapcars.Infrastructure.Options;
 using Mapcars.Infrastructure.Payments;
-using Mapcars.Infrastructure.Persistence;
 using Mapcars.Infrastructure.Persistence.Repositories;
+using Mapcars.Infrastructure.Persistence;
 using Mapcars.Infrastructure.Pricing;
 using Mapcars.Infrastructure.Security;
 using Mapcars.Infrastructure.Services;
+using Mapcars.Infrastructure.Settings;
 using Mapcars.Infrastructure.Storage;
-using Stripe;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+using Stripe;
 
 namespace Mapcars.Infrastructure;
 
@@ -96,6 +98,14 @@ public static class DependencyInjection
         services.AddSingleton<IFareChartStore>(sp => new RedisFareChartStore(
             sp.GetRequiredService<IServiceScopeFactory>(),
             sp.GetRequiredService<ILogger<RedisFareChartStore>>(),
+            sp.GetService<IConnectionMultiplexer>()));
+
+        // Generic key -> document settings (payment toggles today). Same three-tier
+        // read path and same optional-Redis treatment as the fare store above; kept
+        // a separate store so a payment toggle never mints a fare-chart version.
+        services.AddSingleton<ISettingsStore>(sp => new RedisSettingsStore(
+            sp.GetRequiredService<IServiceScopeFactory>(),
+            sp.GetRequiredService<ILogger<RedisSettingsStore>>(),
             sp.GetService<IConnectionMultiplexer>()));
 
         // Live driver locations — Redis GEO (matching hot path). Same optional-Redis
