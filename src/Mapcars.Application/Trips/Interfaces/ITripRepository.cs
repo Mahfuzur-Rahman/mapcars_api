@@ -48,4 +48,19 @@ public interface ITripRepository : IGenericRepository<Trip>
     /// single guard against two drivers grabbing the same trip.
     /// </summary>
     Task<bool> TryAssignAsync(Guid tripId, Guid driverId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Claim the exclusive right to charge this trip. Returns false if someone
+    /// else holds the claim — the loser walks away rather than charging too.
+    ///
+    /// <para>
+    /// <paramref name="staleAfter"/> is the crash-recovery release: a process
+    /// that took the claim and then died leaves it behind, and after this long
+    /// the sweeper may take it. Re-attempting is safe because it reuses the same
+    /// idempotency key, so the provider returns the intent the dead process
+    /// created rather than making a second one.
+    /// </para>
+    /// </summary>
+    Task<bool> TryStartChargeAsync(
+        Guid tripId, DateTime nowUtc, TimeSpan staleAfter, CancellationToken ct = default);
 }

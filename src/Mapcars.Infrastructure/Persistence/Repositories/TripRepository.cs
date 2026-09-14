@@ -117,4 +117,37 @@ public class TripRepository : GenericRepository<Trip>, ITripRepository
                 .SetProperty(t => t.DriverId, driverId), ct);
         return rows == 1;
     }
+
+    public async Task<bool> TryStartChargeAsync(
+        Guid tripId, DateTime nowUtc, TimeSpan staleAfter, CancellationToken ct = default)
+    {
+        // Same idiom as TryAssignAsync above: one conditional UPDATE decides it.
+        // This is the whole answer to the dual-write hazard - the attempt fired
+        // inline when the trip completed and the recovery sweeper both run this,
+        // and exactly one can win.
+        //
+        // The staleness clause is the crash-recovery release. A process that set
+        // the claim and then died leaves it standing; after `staleAfter` the
+        // sweeper may take it, and re-attempting is safe because the same
+        // idempotency key returns the intent the dead process created.
+        var cutoff = nowUtc - staleAfter;
+
+        var rows = await Set
+            .Where(t => t.Id == tripId
+                        && t.PaymentMethod == PaymentMethod.Card
+                        && t.Status == TripStatus.Completed
+                        // Failed and ActionRequired are claimable so a retry goes
+                        // through the same gate. Collected, Refunded and Voided
+                        // are terminal and must never be re-charged.
+                        && (t.PaymentStatus == PaymentStatus.Processing
+                         || t.PaymentStatus == PaymentStatus.Failed
+                         || t.PaymentStatus == PaymentStatus.ActionRequired)
+                        // An admin forgave this fare; do not chase it.
+                        && t.PaymentWaivedAtUtc == null
+                        && (t.ChargeStartedAtUtc == null || t.ChargeStartedAtUtc < cutoff))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(t => t.ChargeStartedAtUtc, nowUtc)
+                .SetProperty(t => t.PaymentStatus, PaymentStatus.Processing), ct);
+        return rows == 1;
+    }
 }
