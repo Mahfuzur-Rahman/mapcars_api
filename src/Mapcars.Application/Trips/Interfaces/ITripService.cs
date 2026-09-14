@@ -51,7 +51,19 @@ public interface ITripService
     /// <summary>Accept an open trip (broadcast model, first-come — atomic).</summary>
     Task<TripResponse> AcceptAsync(Guid driverId, Guid tripId, CancellationToken ct = default);
     Task<TripResponse> ArriveAsync(Guid driverId, Guid tripId, CancellationToken ct = default);
-    Task<TripResponse> StartAsync(Guid driverId, Guid tripId, CancellationToken ct = default);
+    /// <summary>
+    /// Start the trip. <paramref name="pin"/> is the code the passenger reads out
+    /// at the kerb.
+    ///
+    /// <para>
+    /// OPTIONAL for now, deliberately: a driver build older than this change
+    /// sends nothing, and refusing those would strand live trips mid-shift. A
+    /// correct PIN is recorded as proof; a WRONG one is rejected outright. Make
+    /// it required once every driver build sends it.
+    /// </para>
+    /// </summary>
+    Task<TripResponse> StartAsync(
+        Guid driverId, Guid tripId, string? pin = null, CancellationToken ct = default);
     Task<TripResponse> CompleteAsync(Guid driverId, Guid tripId, CancellationToken ct = default);
 
     /// <summary>Cancel by either party. <paramref name="callerType"/> is "customer" or "driver".</summary>

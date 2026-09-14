@@ -132,6 +132,24 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
         }));
 
+    // Card-add is the endpoint a card tester wants: it asks the issuer "is this
+    // card live?" and answers instantly, for free. Left unlimited it is a free
+    // validation oracle for a stolen-card list — and providers monitor for
+    // exactly that, so the damage lands on OUR account even when every card
+    // tried belonged to someone else.
+    //
+    // Keyed on IP, so it stops the casual and accidental case. It does NOT stop
+    // someone rotating IPs — the per-ACCOUNT limits are what cover that, and
+    // they live in the payments service because they have to follow the person
+    // rather than the connection.
+    options.AddPolicy("payments", context =>
+        RateLimitPartition.GetFixedWindowLimiter(ClientKey(context), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(15),
+            QueueLimit = 0,
+        }));
+
     // Client crash reporting (POST /api/v1/error-logs) is anonymous, so it needs
     // a ceiling — generous enough that a genuinely broken app can report a burst
     // of failures, tight enough that it can't be used to fill the table.

@@ -96,6 +96,7 @@ so re-running them is safe.
 | `035_activate_payment_settings_menu.sql` | reveals the Settings group + Payment Settings page in the sidebar. **Run at deploy time**, not before — the page only exists in the Phase 3 web build. Reverse: `035_rollback.sql` |
 | `036_customer_payment_methods.sql` | `customer_payment_methods` (saved cards — provider token + display metadata only, never card data), `customers` (+ `stripe_customer_id`) |
 | `037_trip_card_payment.sql` | `trips` (+ card charge state incl. the `ChargeStartedAtUtc` atomic claim flag). Also backfills cancelled/expired trips from `Pending` to `Voided` — they had been reading as unsettled fares |
+| `038_trip_pin_verification.sql` | `trips` (+ `PinVerifiedAtUtc`/`PinAttemptCount`). The kerbside PIN was only ever checked in the driver app, so it proved nothing and left no evidence. Independent of `031` — safe to apply any time |
 
 ## Conventions
 

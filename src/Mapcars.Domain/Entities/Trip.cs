@@ -28,6 +28,27 @@ public class Trip : BaseEntity
     /// </summary>
     public string? Pin { get; set; }
 
+    /// <summary>
+    /// When the driver proved the passenger read the PIN out — verified by the
+    /// SERVER, not the app.
+    ///
+    /// <para>
+    /// Null means the trip started without proof, which is not blocked but is
+    /// recorded. That distinction is the whole value: it is an anti-collusion
+    /// signal (a manufactured trip has no passenger to read a code) and the
+    /// strongest single piece of evidence in a dispute — "somebody at the kerb
+    /// knew a number only the booker was shown".
+    /// </para>
+    /// </summary>
+    public DateTime? PinVerifiedAtUtc { get; set; }
+
+    /// <summary>
+    /// Failed PIN attempts. A 4-digit code is 10,000 guesses, which is nothing
+    /// over an API, so attempts are capped — otherwise a driver could brute-force
+    /// their way to a "verified" pickup that never happened.
+    /// </summary>
+    public int PinAttemptCount { get; set; }
+
     /// <summary>Final fare in GBP (incl. VAT). Priced at booking from the fare chart.</summary>
     public decimal? FareAmount { get; set; }
 

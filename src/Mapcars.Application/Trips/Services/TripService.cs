@@ -229,6 +229,9 @@ public class TripService : ITripService
     /// </summary>
     private static string NewPin() => Random.Shared.Next(1000, 10000).ToString();
 
+    /// <summary>Wrong PINs allowed before verification is refused for this trip.</summary>
+    private const int MaxPinAttempts = 5;
+
     public async Task<TripResponse> ExtendAsync(
         Guid customerId, Guid tripId, CancellationToken ct = default)
     {
@@ -290,8 +293,67 @@ public class TripService : ITripService
     public async Task<TripResponse> ArriveAsync(Guid driverId, Guid tripId, CancellationToken ct = default)
         => await TransitionAsync(driverId, tripId, TripStatus.DriverAssigned, TripStatus.DriverArrived, ct);
 
-    public async Task<TripResponse> StartAsync(Guid driverId, Guid tripId, CancellationToken ct = default)
-        => await TransitionAsync(driverId, tripId, TripStatus.DriverArrived, TripStatus.InProgress, ct);
+    public async Task<TripResponse> StartAsync(
+        Guid driverId, Guid tripId, string? pin = null, CancellationToken ct = default)
+    {
+        await VerifyPinAsync(driverId, tripId, pin, ct);
+        return await TransitionAsync(driverId, tripId, TripStatus.DriverArrived, TripStatus.InProgress, ct);
+    }
+
+    /// <summary>
+    /// Check the kerbside PIN, server-side.
+    ///
+    /// <para>
+    /// Until now this was checked only in the driver app, which means it proved
+    /// nothing: a driver calling the API directly skipped it, and the server kept
+    /// no record either way. A client-side check is a UX affordance, not a
+    /// control.
+    /// </para>
+    ///
+    /// <para>
+    /// A missing PIN is allowed through (older driver builds send none) but
+    /// leaves <c>PinVerifiedAtUtc</c> null. A WRONG one is refused — sending a
+    /// guess is not something an honest app does.
+    /// </para>
+    /// </summary>
+    private async Task VerifyPinAsync(Guid driverId, Guid tripId, string? pin, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(pin)) return;
+
+        var trip = await GetOwnedByDriverAsync(driverId, tripId, ct);
+        if (string.IsNullOrEmpty(trip.Pin)) return;      // booked before PINs existed
+        if (trip.PinVerifiedAtUtc is not null) return;   // already proved
+
+        // 10,000 combinations is nothing over an API. Cap the attempts, or a
+        // driver could brute-force a "verified" pickup that never happened.
+        if (trip.PinAttemptCount >= MaxPinAttempts)
+            throw new DomainException(
+                "Too many incorrect PIN attempts. Ask the customer to confirm their booking, " +
+                "or contact support.");
+
+        if (!FixedTimeEquals(trip.Pin, pin.Trim()))
+        {
+            trip.PinAttemptCount++;
+            await _uow.SaveChangesAsync(ct);
+            throw new DomainException("That PIN doesn't match. Ask the customer to read it out again.");
+        }
+
+        trip.PinVerifiedAtUtc = DateTime.UtcNow;
+        await _uow.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Length-independent, content-constant-time comparison. A 4-digit secret
+    /// compared with ordinary string equality leaks its prefix through timing,
+    /// and the cost of not leaking it is a few nanoseconds.
+    /// </summary>
+    private static bool FixedTimeEquals(string expected, string actual)
+    {
+        var diff = expected.Length ^ actual.Length;
+        for (var i = 0; i < expected.Length && i < actual.Length; i++)
+            diff |= expected[i] ^ actual[i];
+        return diff == 0;
+    }
 
     public async Task<TripResponse> CompleteAsync(Guid driverId, Guid tripId, CancellationToken ct = default)
     {
