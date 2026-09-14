@@ -47,6 +47,19 @@ CREATE TABLE IF NOT EXISTS customer_payment_methods (
     -- authentication.
     stripe_setup_intent_id   VARCHAR(255),
     mandate_accepted_at_utc  TIMESTAMPTZ,
+    -- Strong customer authentication (3-D Secure), recorded separately from the
+    -- mandate because they are different facts: a mandate can be established
+    -- without the cardholder ever being challenged.
+    --
+    -- This is worth real money at dispute time. A card saved with a genuine
+    -- authentication generally carries ISSUER liability on a later fraud
+    -- chargeback; one saved frictionless or exempt does not. Two cards that look
+    -- identical in the UI, completely different outcomes when disputed - so the
+    -- result is stored verbatim rather than pre-interpreted, since the mapping
+    -- from result to liability is the card networks' rule and it changes.
+    authentication_result    VARCHAR(40),
+    authentication_flow      VARCHAR(20),
+    authenticated_at_utc     TIMESTAMPTZ,
     "CreatedAtUtc"           TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     "UpdatedAtUtc"           TIMESTAMPTZ,
     CONSTRAINT "PK_customer_payment_methods" PRIMARY KEY ("Id"),

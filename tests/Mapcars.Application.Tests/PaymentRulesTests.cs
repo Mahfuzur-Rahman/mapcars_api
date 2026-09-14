@@ -127,3 +127,68 @@ public class CustomerPaymentMethodTests
         Assert.False(Card(1, 2000).IsUsable);
     }
 }
+
+public class CardAuthenticationTests
+{
+    private static CustomerPaymentMethod Saved(string? result, string? flow = null) => new()
+    {
+        StripePaymentMethodId = "pm_test",
+        AuthenticationResult = result,
+        AuthenticationFlow = flow,
+    };
+
+    [Theory]
+    [InlineData("authenticated")]
+    [InlineData("attempt_acknowledged")]
+    public void A_successful_authentication_reads_as_liability_shifted(string result)
+        => Assert.True(Saved(result).IsLikelyLiabilityShifted);
+
+    [Theory]
+    [InlineData("not_authenticated")]
+    [InlineData("failed")]
+    [InlineData("rejected")]
+    [InlineData("processing_error")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void Anything_else_reads_as_NOT_shifted(string? result)
+    {
+        // Unknown counts as not shifted. Assuming protection we do not have is
+        // the expensive direction to be wrong in — it would mean skipping
+        // friction on exactly the cards that need it.
+        Assert.False(Saved(result).IsLikelyLiabilityShifted);
+    }
+
+    [Fact]
+    public void A_result_we_have_never_seen_is_treated_as_NOT_shifted()
+        => Assert.False(Saved("some_new_network_result").IsLikelyLiabilityShifted);
+
+    [Fact]
+    public void WasChallenged_requires_BOTH_a_challenge_and_a_pass()
+    {
+        // The strongest signal available: a human actively confirmed in the real
+        // cardholder's banking app.
+        Assert.True(Saved("authenticated", "challenge").WasChallenged);
+
+        // Frictionless can still shift liability, but it proves nothing about
+        // who was holding the phone — the issuer just decided not to ask.
+        Assert.False(Saved("authenticated", "frictionless").WasChallenged);
+        Assert.True(Saved("authenticated", "frictionless").IsLikelyLiabilityShifted);
+
+        // A challenge that was not passed is not evidence of anything.
+        Assert.False(Saved("failed", "challenge").WasChallenged);
+        Assert.False(Saved(null, null).WasChallenged);
+    }
+
+    [Fact]
+    public void Authentication_state_is_independent_of_usability()
+    {
+        // An unauthenticated card is still chargeable — it just carries the
+        // fraud risk. These two questions must not be conflated: refusing to
+        // charge unauthenticated cards would break most customers.
+        var card = Saved(null);
+        card.ExpYear = 2099;
+        card.ExpMonth = 12;
+        Assert.True(card.IsUsable);
+        Assert.False(card.IsLikelyLiabilityShifted);
+    }
+}

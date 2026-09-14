@@ -29,6 +29,9 @@ public class CustomerPaymentMethodConfiguration : IEntityTypeConfiguration<Custo
         b.Property(x => x.DeactivationReason).HasColumnName("deactivation_reason").HasMaxLength(100);
         b.Property(x => x.StripeSetupIntentId).HasColumnName("stripe_setup_intent_id").HasMaxLength(255);
         b.Property(x => x.MandateAcceptedAtUtc).HasColumnName("mandate_accepted_at_utc");
+        b.Property(x => x.AuthenticationResult).HasColumnName("authentication_result").HasMaxLength(40);
+        b.Property(x => x.AuthenticationFlow).HasColumnName("authentication_flow").HasMaxLength(20);
+        b.Property(x => x.AuthenticatedAtUtc).HasColumnName("authenticated_at_utc");
 
         b.HasIndex(x => x.StripePaymentMethodId).IsUnique();
         b.HasIndex(x => new { x.CustomerId, x.IsActive });
@@ -38,7 +41,9 @@ public class CustomerPaymentMethodConfiguration : IEntityTypeConfiguration<Custo
             .HasForeignKey(x => x.CustomerId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // IsUsable / IsExpired are computed from the columns above.
+        // All computed from the columns above.
         b.Ignore(x => x.IsUsable);
+        b.Ignore(x => x.IsLikelyLiabilityShifted);
+        b.Ignore(x => x.WasChallenged);
     }
 }

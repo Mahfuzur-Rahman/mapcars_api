@@ -65,6 +65,63 @@ public class CustomerPaymentMethod : BaseEntity
     public string? StripeSetupIntentId { get; set; }
     public DateTime? MandateAcceptedAtUtc { get; set; }
 
+    // ─── Strong customer authentication (3-D Secure) ─────────────────────────
+    // Recorded separately from the mandate, because they are different facts: a
+    // mandate can be established without the cardholder ever being challenged.
+
+    /// <summary>
+    /// The provider's authentication result, verbatim — e.g. "authenticated",
+    /// "attempt_acknowledged", "not_authenticated", "failed". Null when no
+    /// authentication was attempted at all.
+    ///
+    /// <para>
+    /// Stored raw rather than pre-interpreted: the mapping from result to
+    /// liability is the card networks' rule, not ours, and it changes. Keeping
+    /// the original means a future correction is a code change, not a data loss.
+    /// </para>
+    /// </summary>
+    public string? AuthenticationResult { get; set; }
+
+    /// <summary>
+    /// "challenge" — the cardholder actively confirmed, in their banking app.
+    /// "frictionless" — the issuer approved silently on risk signals.
+    /// Both can carry liability shift; only the first proves a human with the
+    /// cardholder's banking access was present when the card was added.
+    /// </summary>
+    public string? AuthenticationFlow { get; set; }
+
+    /// <summary>When authentication completed. Null when none happened.</summary>
+    public DateTime? AuthenticatedAtUtc { get; set; }
+
+    /// <summary>
+    /// Our best local read of whether fraud liability for a later dispute sits
+    /// with the ISSUER rather than with us.
+    ///
+    /// <para>
+    /// <b>Advisory, and deliberately conservative.</b> The authoritative answer
+    /// comes from the acquirer at dispute time, and the rules differ by network
+    /// and by whether the charge was merchant-initiated. Unknown counts as NOT
+    /// shifted — assuming protection we do not have is the expensive direction
+    /// to be wrong in.
+    /// </para>
+    ///
+    /// <para>
+    /// Use it to decide where to add friction (an unauthenticated card on a £60
+    /// airport run is the one to challenge), not to decide whether to fight a
+    /// chargeback.
+    /// </para>
+    /// </summary>
+    public bool IsLikelyLiabilityShifted
+        => AuthenticationResult is "authenticated" or "attempt_acknowledged";
+
+    /// <summary>
+    /// True when a human actively passed a challenge — the strongest evidence
+    /// available that whoever saved this card had the real cardholder's banking
+    /// authentication.
+    /// </summary>
+    public bool WasChallenged
+        => AuthenticationFlow == "challenge" && AuthenticationResult == "authenticated";
+
     /// <summary>Cards a customer can actually be charged on.</summary>
     public bool IsUsable => IsActive && !IsExpired(DateTime.UtcNow);
 
