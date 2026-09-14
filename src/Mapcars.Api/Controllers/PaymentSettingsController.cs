@@ -32,15 +32,22 @@ public class PaymentSettingsController(IPaymentSettingsService settings) : Contr
     public async Task<ActionResult<PaymentSettingsResponse>> Get(CancellationToken ct)
         => Ok(await settings.GetAsync(ct));
 
+    /// <summary>The full settings document, including the fraud thresholds.</summary>
+    [HttpGet("admin")]
+    [Authorize(Roles = "SuperAdmin")]
+    [ProducesResponseType(typeof(AdminPaymentSettingsResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<AdminPaymentSettingsResponse>> GetForAdmin(CancellationToken ct)
+        => Ok(await settings.GetForAdminAsync(ct));
+
     /// <summary>
     /// Publish new global settings. At least one method must stay enabled; a
     /// default naming a now-disabled method is corrected rather than rejected.
     /// </summary>
     [HttpPut]
     [Authorize(Roles = "SuperAdmin")]
-    [ProducesResponseType(typeof(PaymentSettingsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AdminPaymentSettingsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<PaymentSettingsResponse>> Update(
+    public async Task<ActionResult<AdminPaymentSettingsResponse>> Update(
         [FromBody] UpdatePaymentSettingsRequest request, CancellationToken ct)
     {
         if (!TryGetAdminId(out var adminId)) return Unauthorized();

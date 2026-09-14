@@ -19,6 +19,15 @@ public class UpdatePaymentSettingsRequestValidator : AbstractValidator<UpdatePay
             .Must(x => x.CashEnabled || x.CardEnabled)
             .WithMessage("At least one payment method must stay enabled.");
 
+        // Ranges, not opinions. The right values are a business call an admin can
+        // tune; these only stop a typo becoming an outage - a zero card limit
+        // would lock every customer out of paying.
+        RuleFor(x => x.MaxSavedCardsPerCustomer).InclusiveBetween(1, 20);
+        RuleFor(x => x.MaxCardAddAttemptsPerDay).InclusiveBetween(1, 50);
+        RuleFor(x => x.ChallengeAboveFarePence).InclusiveBetween(0, 100_000);
+        RuleFor(x => x.ReverifyAfterDormantDays).InclusiveBetween(0, 3650);
+        RuleFor(x => x.BlockBookingWhenDebtExceedsPence).InclusiveBetween(0, 100_000);
+
         // Deliberately NOT validated: that DefaultMethod names an enabled method.
         // Turning cash off while cash is the default is an ordinary thing for an
         // admin to do, and rejecting it with a 400 would only make them do it in

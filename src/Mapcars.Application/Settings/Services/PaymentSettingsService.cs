@@ -21,7 +21,10 @@ public class PaymentSettingsService(
     public async Task<PaymentSettingsResponse> GetAsync(CancellationToken ct = default)
         => ToResponse(await settings.GetAsync<PaymentSettings>(SettingKeys.Payments, ct));
 
-    public async Task<PaymentSettingsResponse> UpdateAsync(
+    public async Task<AdminPaymentSettingsResponse> GetForAdminAsync(CancellationToken ct = default)
+        => ToAdminResponse(await settings.GetAsync<PaymentSettings>(SettingKeys.Payments, ct));
+
+    public async Task<AdminPaymentSettingsResponse> UpdateAsync(
         UpdatePaymentSettingsRequest request, Guid adminId, CancellationToken ct = default)
     {
         // Shape, and the at-least-one-method rule, are already enforced by the
@@ -31,6 +34,16 @@ public class PaymentSettingsService(
             CashEnabled = request.CashEnabled,
             CardEnabled = request.CardEnabled,
             DefaultMethod = request.DefaultMethod,
+
+            ChallengeOnNewDevice = request.ChallengeOnNewDevice,
+            ChallengeAfterFailedCharge = request.ChallengeAfterFailedCharge,
+            ChallengeUnauthenticatedCards = request.ChallengeUnauthenticatedCards,
+            ChallengeAboveFarePence = request.ChallengeAboveFarePence,
+            ReverifyAfterDormantDays = request.ReverifyAfterDormantDays,
+
+            MaxSavedCardsPerCustomer = request.MaxSavedCardsPerCustomer,
+            MaxCardAddAttemptsPerDay = request.MaxCardAddAttemptsPerDay,
+            BlockBookingWhenDebtExceedsPence = request.BlockBookingWhenDebtExceedsPence,
         };
 
         // Correct rather than reject: switching off whichever method happens to be
@@ -43,7 +56,7 @@ public class PaymentSettingsService(
             next.DefaultMethod = PaymentMethodNames.Cash;
 
         var saved = await settings.SetAsync(SettingKeys.Payments, next, adminId, ct);
-        return ToResponse(saved);
+        return ToAdminResponse(saved);
     }
 
     public async Task<DriverPaymentOptionsResponse> GetDriverOptionsAsync(
@@ -82,8 +95,17 @@ public class PaymentSettingsService(
         return ToResponse(driver, current);
     }
 
+    /// <summary>The public shape — methods only. See the DTO for why.</summary>
     private static PaymentSettingsResponse ToResponse(PaymentSettings s)
         => new(s.CashEnabled, s.CardEnabled, s.DefaultMethod);
+
+    private static AdminPaymentSettingsResponse ToAdminResponse(PaymentSettings s)
+        => new(s.CashEnabled, s.CardEnabled, s.DefaultMethod,
+               s.ChallengeOnNewDevice, s.ChallengeAfterFailedCharge,
+               s.ChallengeUnauthenticatedCards, s.ChallengeAboveFarePence,
+               s.ReverifyAfterDormantDays,
+               s.MaxSavedCardsPerCustomer, s.MaxCardAddAttemptsPerDay,
+               s.BlockBookingWhenDebtExceedsPence);
 
     private static DriverPaymentOptionsResponse ToResponse(Driver d, PaymentSettings s)
         => new(d.Id, d.AcceptsCashOverride, d.AcceptsCardOverride,
