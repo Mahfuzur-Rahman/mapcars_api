@@ -73,6 +73,75 @@ public class Trip : BaseEntity
     /// <summary>When the fare was settled (cash collected / card captured). Null until paid.</summary>
     public DateTime? PaidAtUtc { get; set; }
 
+    // ─── Card charge state (all null on a cash trip) ──────────────────────────
+
+    /// <summary>
+    /// The payment provider's intent for this trip's fare. Null until a charge
+    /// starts. Once set it is never replaced for the same attempt — recovery
+    /// re-reads THIS intent rather than creating a second one, because provider
+    /// idempotency keys expire (24h at Stripe) and a fresh create after that
+    /// would genuinely double-charge.
+    /// </summary>
+    public string? StripePaymentIntentId { get; set; }
+
+    /// <summary>The saved card chosen at booking. Null for cash trips.</summary>
+    public Guid? CustomerPaymentMethodId { get; set; }
+    public CustomerPaymentMethod? CustomerPaymentMethod { get; set; }
+
+    /// <summary>
+    /// Claim marker for the charge pipeline, and <b>the whole answer to the
+    /// dual-write hazard</b>.
+    ///
+    /// <para>
+    /// Set by a single conditional UPDATE (see <c>TryStartChargeAsync</c>), so the
+    /// attempt fired inline from <c>CompleteAsync</c> and the recovery sweeper can
+    /// never both charge one trip — the loser simply walks away. A value older
+    /// than the staleness window means the claiming process died mid-flight and
+    /// the sweeper may re-claim it.
+    /// </para>
+    /// </summary>
+    public DateTime? ChargeStartedAtUtc { get; set; }
+
+    /// <summary>
+    /// What was actually taken, in integer pence. Authoritative for
+    /// reconciliation: the decimal-pounds columns above are a display
+    /// representation that happens to be persisted, and this is the number that
+    /// has to agree with the provider penny for penny.
+    /// </summary>
+    public int? AmountChargedPence { get; set; }
+
+    /// <summary>Provider decline code, e.g. "insufficient_funds". Drives the retry decision.</summary>
+    public string? PaymentFailureCode { get; set; }
+
+    /// <summary>The customer-facing decline message. Safe to show; never a raw exception.</summary>
+    public string? PaymentFailureMessage { get; set; }
+
+    /// <summary>
+    /// 0 for the first charge, then 1..N. Durable on purpose — it is what makes a
+    /// retry's idempotency key stable across a crash or a double-tap.
+    /// </summary>
+    public int PaymentAttemptCount { get; set; }
+
+    /// <summary>When the sweeper should next retry. Null = no automatic retry scheduled.</summary>
+    public DateTime? NextPaymentRetryAtUtc { get; set; }
+
+    /// <summary>
+    /// Timestamp of the most recent provider event applied to this trip.
+    /// Providers do not guarantee webhook ordering, so an event older than this
+    /// is dropped — otherwise a late "processing" could un-settle a paid trip.
+    /// </summary>
+    public DateTime? LastPaymentEventAtUtc { get; set; }
+
+    /// <summary>
+    /// An admin forgave this fare. Clears the debt without inventing a ledger:
+    /// the outstanding-balance query simply excludes waived trips.
+    /// </summary>
+    public DateTime? PaymentWaivedAtUtc { get; set; }
+    public Guid? PaymentWaivedByAdminId { get; set; }
+
+    /// <summary>RESERVED for a pre-auth hold. Never written — see PaymentStatus.Authorized.</summary>
+    public DateTime? AuthorizedAtUtc { get; set; }
+
     // ─── Search window (open requests only) ───────────────────────────────────
 
     /// <summary>

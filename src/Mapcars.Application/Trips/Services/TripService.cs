@@ -342,6 +342,14 @@ public class TripService : ITripService
         trip.CancelledReason = request.Reason;
         trip.IsNoShow = isNoShow;
 
+        // A cancelled trip owes nothing and never will. Leaving it Pending - which
+        // is what happened until now - reads as an unsettled fare in every
+        // "what is outstanding?" query and on the admin transactions view.
+        // Only Pending moves: a fare already Collected (a cash trip cancelled
+        // after drop-off, however that happened) must not be quietly unsettled.
+        if (trip.PaymentStatus == PaymentStatus.Pending)
+            trip.PaymentStatus = PaymentStatus.Voided;
+
         if (isCustomer)
         {
             var customer = await _customers.GetByIdAsync(callerId, ct);

@@ -43,6 +43,10 @@ public class AppDbContext : DbContext, IUnitOfWork
     // pricing version.
     public DbSet<AppSettingRecord> AppSettings => Set<AppSettingRecord>();
 
+    // Saved cards — opaque provider tokens plus display-safe metadata only
+    // (database/037_customer_payment_methods.sql). No card data is ever stored.
+    public DbSet<CustomerPaymentMethod> CustomerPaymentMethods => Set<CustomerPaymentMethod>();
+
     // Admin auth (database-first — tables created via database/001_admin_auth.sql)
     public DbSet<Admin> Admins => Set<Admin>();
     public DbSet<Role> Roles => Set<Role>();

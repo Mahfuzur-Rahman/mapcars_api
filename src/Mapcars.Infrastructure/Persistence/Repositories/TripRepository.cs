@@ -60,7 +60,12 @@ public class TripRepository : GenericRepository<Trip>, ITripRepository
                 // Reuses the existing "when did this trip end" column rather
                 // than adding an ExpiredAtUtc that would mean the same thing.
                 // Status already says *how* it ended.
-                .SetProperty(t => t.CancelledAtUtc, nowUtc), ct);
+                .SetProperty(t => t.CancelledAtUtc, nowUtc)
+                // Nobody accepted it, so nothing is owed. Safe to set flatly here
+                // rather than conditionally: the WHERE above already restricts
+                // this to a Requested trip with no driver, which cannot have been
+                // settled.
+                .SetProperty(t => t.PaymentStatus, PaymentStatus.Voided), ct);
         return rows == 1;
     }
 

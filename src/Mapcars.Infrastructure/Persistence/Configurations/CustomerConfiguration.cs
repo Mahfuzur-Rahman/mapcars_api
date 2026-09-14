@@ -16,6 +16,7 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         b.Property(r => r.PhoneNumber).HasMaxLength(20);
         b.Property(r => r.PasswordHash).HasColumnName("password_hash").HasMaxLength(255);
         b.Property(r => r.GoogleSub).HasColumnName("google_sub").HasMaxLength(255);
+        b.Property(r => r.StripeCustomerId).HasColumnName("stripe_customer_id").HasMaxLength(255);
         b.Property(r => r.IsEmailVerified).HasColumnName("is_email_verified");
         b.Property(r => r.IsPhoneVerified).HasColumnName("is_phone_verified");
 

@@ -91,6 +91,11 @@ so re-running them is safe.
 | `030_user_type_dual_accept.sql` | widens 3 CHECK constraints (`ratings`, `trip_messages`, `verification_codes`) to accept `'customer'` as well as `'rider'`. No behaviour change; apply days before `031`. Reverse: `030_rollback.sql` |
 | `031_rider_to_customer.sql` | **the rename.** `riders`→`customers`; `trips."RiderId"`, `documents.rider_id`, `saved_places.rider_id` → `customer_*`; 4 constraints, 7 indexes; the stored `'rider'` literal in 6 tables; `trips."Status"` `CancelledByRider`→`CancelledByCustomer`; 3 `menus` rows. **API STOPPED.** Reverse: `031_rollback.sql` |
 | `032_user_type_finalize.sql` | narrows the 3 CHECK constraints to `'customer'` only, refusing if any legacy row survives. Run ~2 weeks after `031` |
+| `033_app_settings.sql` | `app_settings` (generic key → JSONB settings, versioned). Seeds the `payments` key with **card off**. Separate from `fare_charts` so a payment toggle never mints a pricing version |
+| `034_driver_payment_overrides.sql` | `drivers` (+ nullable `accepts_cash_override`/`accepts_card_override` — tri-state, NULL = follow the global setting); seeds the Payment Settings menu **inactive** |
+| `035_activate_payment_settings_menu.sql` | reveals the Settings group + Payment Settings page in the sidebar. **Run at deploy time**, not before — the page only exists in the Phase 3 web build. Reverse: `035_rollback.sql` |
+| `036_customer_payment_methods.sql` | `customer_payment_methods` (saved cards — provider token + display metadata only, never card data), `customers` (+ `stripe_customer_id`) |
+| `037_trip_card_payment.sql` | `trips` (+ card charge state incl. the `ChargeStartedAtUtc` atomic claim flag). Also backfills cancelled/expired trips from `Pending` to `Voided` — they had been reading as unsettled fares |
 
 ## Conventions
 
