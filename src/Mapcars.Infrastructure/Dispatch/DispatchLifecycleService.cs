@@ -247,12 +247,11 @@ public sealed class DispatchLifecycleService : BackgroundService
             "push tripUpdated for expired trip {TripId}", trip.Id);
 
         await SafelyAsync(
-            // No "tap to…" here. Neither app routes an FCM payload anywhere yet
-            // (push_service only registers the token), so tapping just resumes
-            // wherever the app was. That happens to land a backgrounded customer on
-            // the prompt above, which is why the pause copy can say it — but
-            // this one fires after the trip is closed, when there is nothing
-            // left on that screen to tap.
+            // No "tap to…" here. The customer app now routes a tripExpired tap to
+            // booking (push_routing.dart), but builds already installed don't —
+            // their tap just resumes wherever the app was, and after the trip has
+            // closed there is nothing left on that screen to tap. Revisit the copy
+            // once the routing build is what customers actually run.
             () => push.NotifyUserAsync(UserTypes.Customer, trip.CustomerId, new PushMessage(
                 "No drivers found",
                 "We couldn't find a driver for your ride. Book again when you're ready.",
