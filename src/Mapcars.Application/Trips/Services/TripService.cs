@@ -639,8 +639,10 @@ public class TripService : ITripService
     private Task NotifyCustomerAsync(Trip trip, string title, string body, CancellationToken ct)
         => _push.NotifyUserAsync(UserTypes.Customer, trip.CustomerId, new PushMessage(title, body, TripData(trip)), ct);
 
+    // Every push carries a "type" — the apps route a notification tap on it.
     private static IReadOnlyDictionary<string, string> TripData(Trip trip) => new Dictionary<string, string>
     {
+        ["type"] = "tripStatus",
         ["tripId"] = trip.Id.ToString(),
         ["status"] = trip.Status.ToString(),
     };
