@@ -28,14 +28,33 @@ builder.Services.AddControllers(options =>
 builder.Services.AddOpenApi();
 
 // Behind Nginx (GCE) / any reverse proxy that terminates TLS: trust its
-// X-Forwarded-Proto so the app knows the original request was HTTPS, not the
-// plain-HTTP hop from the proxy to Kestrel. Known networks/proxies are cleared
-// because the proxy sits on the same host/container network, not a fixed IP.
+// X-Forwarded-For / -Proto so the app sees the real client and knows the request
+// was HTTPS. Trusted ONLY from private and loopback hops — Nginx on the host
+// reaches the container via the Docker gateway, and the web BFF calls it over the
+// Docker network — and only ONE hop is unwound, i.e. the right-most entry, the one
+// our own proxy appended. Nginx uses $proxy_add_x_forwarded_for, which APPENDS, so
+// the left-most entry is whatever the client typed: until 2026-09 the API keyed its
+// rate limits on that, and any caller could dodge every limit by sending a fresh
+// fake IP per request. After this, Connection.RemoteIpAddress IS the client IP.
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
     options.KnownNetworks.Clear();
     options.KnownProxies.Clear();
+    foreach (var cidr in new[]
+             {
+                 "127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+                 // The same ranges as IPv4-mapped IPv6, which is how a dual-stack
+                 // socket can report them.
+                 "::ffff:127.0.0.0/104", "::ffff:10.0.0.0/104", "::ffff:172.16.0.0/108", "::ffff:192.168.0.0/112",
+                 "::1/128",
+             })
+    {
+        var parts = cidr.Split('/');
+        options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
+            System.Net.IPAddress.Parse(parts[0]), int.Parse(parts[1])));
+    }
 });
 
 // CORS — the browser web app calls the API cross-origin in dev.
@@ -106,7 +125,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 // Rate limiting — brute-force / abuse protection on the auth surface. Partitioned
-// by the real client IP (X-Forwarded-For first, since we sit behind Nginx). Two
+// by the real client IP (resolved from trusted proxy hops only — see ClientKey). Two
 // named policies applied per-endpoint (see the *AuthController classes):
 //   • "otp"  — endpoints that send a billable SMS/email (send-otp, signup, resend)
 //   • "auth" — credential/code submission (verify-*, login, google, setup)
@@ -221,12 +240,8 @@ app.MapHub<TripHub>("/hubs/trip");
 
 app.Run();
 
-// Partition key for rate limiting: the originating client IP. Behind Nginx the
-// connection IP is the proxy, so prefer the left-most X-Forwarded-For entry.
+// Partition key for rate limiting: the originating client IP, as resolved by
+// UseForwardedHeaders from trusted hops only. Never read X-Forwarded-For here
+// directly — its left-most entry is client-controlled (see the options above).
 static string ClientKey(HttpContext context)
-{
-    var forwarded = context.Request.Headers["X-Forwarded-For"].ToString();
-    if (!string.IsNullOrWhiteSpace(forwarded))
-        return forwarded.Split(',')[0].Trim();
-    return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-}
+    => context.Connection.RemoteIpAddress?.ToString() ?? "unknown";

@@ -56,15 +56,8 @@ public class ErrorLogsController : ControllerBase
             IpAddress: ClientIp());
     }
 
-    /// <summary>Real client IP — we sit behind Nginx, so X-Forwarded-For wins.</summary>
-    private string? ClientIp()
-    {
-        var forwarded = Request.Headers["X-Forwarded-For"].ToString();
-        if (!string.IsNullOrWhiteSpace(forwarded))
-            return forwarded.Split(',')[0].Trim();
-
-        return HttpContext.Connection.RemoteIpAddress?.ToString();
-    }
+    /// <summary>Real client IP, as UseForwardedHeaders resolved it from trusted hops.</summary>
+    private string? ClientIp() => HttpContext.Connection.RemoteIpAddress?.ToString();
 }
 
 /// <summary>

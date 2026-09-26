@@ -120,12 +120,8 @@ public class ExceptionHandlingMiddleware
     private static Guid? UserIdOf(HttpContext context)
         => Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
 
-    private static string? ClientIp(HttpContext context)
-    {
-        var forwarded = context.Request.Headers["X-Forwarded-For"].ToString();
-        if (!string.IsNullOrWhiteSpace(forwarded)) return forwarded.Split(',')[0].Trim();
-        return context.Connection.RemoteIpAddress?.ToString();
-    }
+    // Resolved by UseForwardedHeaders (which runs first) from trusted hops only.
+    private static string? ClientIp(HttpContext context) => context.Connection.RemoteIpAddress?.ToString();
 
     private static async Task WriteProblemAsync(
         HttpContext context, HttpStatusCode status, string title, object? errors = null)
