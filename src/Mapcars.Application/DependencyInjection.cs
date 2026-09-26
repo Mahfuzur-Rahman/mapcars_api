@@ -4,6 +4,8 @@ using Mapcars.Application.Admins.Interfaces;
 using Mapcars.Application.Admins.Services;
 using Mapcars.Application.Auth.Interfaces;
 using Mapcars.Application.Auth.Services;
+using Mapcars.Application.Contact.Interfaces;
+using Mapcars.Application.Contact.Services;
 using Mapcars.Application.Customers.Interfaces;
 using Mapcars.Application.Customers.Services;
 using Mapcars.Application.Dispatch.Interfaces;
@@ -62,6 +64,7 @@ public static class DependencyInjection
         services.AddScoped<IUnifiedAuthService, UnifiedAuthService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddScoped<IPasswordResetService, PasswordResetService>();
+        services.AddScoped<IContactService, ContactService>();
         services.AddScoped<IAdminAuthService, AdminAuthService>();
         services.AddScoped<IAdminManagementService, AdminManagementService>();
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();
