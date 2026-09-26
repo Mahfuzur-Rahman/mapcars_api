@@ -40,6 +40,8 @@ using Mapcars.Application.SavedPlaces.Interfaces;
 using Mapcars.Application.SavedPlaces.Services;
 using Mapcars.Application.Settings.Interfaces;
 using Mapcars.Application.Settings.Services;
+using Mapcars.Application.Statements.Interfaces;
+using Mapcars.Application.Statements.Services;
 using Mapcars.Application.Trips.Interfaces;
 using Mapcars.Application.Trips.Services;
 using Mapcars.Application.Vehicles.Interfaces;
@@ -65,6 +67,7 @@ public static class DependencyInjection
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddScoped<IPasswordResetService, PasswordResetService>();
         services.AddScoped<IContactService, ContactService>();
+        services.AddScoped<IDriverStatementService, DriverStatementService>();
         services.AddScoped<IAdminAuthService, AdminAuthService>();
         services.AddScoped<IAdminManagementService, AdminManagementService>();
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();

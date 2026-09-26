@@ -46,6 +46,8 @@ public class AppDbContext : DbContext, IUnitOfWork
     // Saved cards — opaque provider tokens plus display-safe metadata only
     // (database/037_customer_payment_methods.sql). No card data is ever stored.
     public DbSet<CustomerPaymentMethod> CustomerPaymentMethods => Set<CustomerPaymentMethod>();
+    public DbSet<DriverStatement> DriverStatements => Set<DriverStatement>();
+    public DbSet<DriverStatementLine> DriverStatementLines => Set<DriverStatementLine>();
 
     // Admin auth (database-first — tables created via database/001_admin_auth.sql)
     public DbSet<Admin> Admins => Set<Admin>();

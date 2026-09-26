@@ -99,6 +99,7 @@ so re-running them is safe.
 | `038_trip_pin_verification.sql` | `trips` (+ `PinVerifiedAtUtc`/`PinAttemptCount`). The kerbside PIN was only ever checked in the driver app, so it proved nothing and left no evidence. Independent of `031` — safe to apply any time |
 | `039_password_reset_and_otp_attempts.sql` | `verification_codes` (+ `attempt_count`, provider `'reset'`). Self-service password reset, and a cap of 5 wrong guesses per code for every OTP flow (guessing was unlimited). **Applied 2026-09-26.** Additive — the new image REQUIRES it, the old one ignores it |
 | `040_apple_sign_in.sql` | `customers`, `drivers` (+ `apple_sub`, unique where present). Sign in with Apple — App Review 4.8 requires it alongside Google. **Applied 2026-09-26.** Additive — the new image REQUIRES it, the old one ignores it |
+| `041_driver_statements.sql` | `driver_statements`, `driver_statement_lines` (new). Weekly driver statements in integer pence; signed lines (card = owed to driver, cash = commission owed to us); unique per driver-week and per trip. **Applied 2026-09-26.** Additive — the new image REQUIRES it (hourly build job) |
 
 ## Conventions
 

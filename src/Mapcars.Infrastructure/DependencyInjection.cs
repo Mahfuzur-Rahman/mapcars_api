@@ -18,6 +18,7 @@ using Mapcars.Application.Pricing.Interfaces;
 using Mapcars.Application.Ratings.Interfaces;
 using Mapcars.Application.SavedPlaces.Interfaces;
 using Mapcars.Application.Settings.Interfaces;
+using Mapcars.Application.Statements.Interfaces;
 using Mapcars.Application.Trips.Interfaces;
 using Mapcars.Application.Vehicles.Interfaces;
 using Mapcars.Infrastructure.Dispatch;
@@ -31,6 +32,7 @@ using Mapcars.Infrastructure.Pricing;
 using Mapcars.Infrastructure.Security;
 using Mapcars.Infrastructure.Services;
 using Mapcars.Infrastructure.Settings;
+using Mapcars.Infrastructure.Statements;
 using Mapcars.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -75,6 +77,7 @@ public static class DependencyInjection
         services.AddScoped<IDriverPayoutAccountRepository, DriverPayoutAccountRepository>();
         services.AddScoped<IPayoutRepository, PayoutRepository>();
         services.AddScoped<ICustomerPaymentMethodRepository, CustomerPaymentMethodRepository>();
+        services.AddScoped<IDriverStatementRepository, DriverStatementRepository>();
         services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IPosterRepository, PosterRepository>();
@@ -122,6 +125,7 @@ public static class DependencyInjection
         // out. Notification only — expiry is enforced by the board queries and
         // the atomic accept, not by this timer.
         services.AddHostedService<DispatchLifecycleService>();
+        services.AddHostedService<DriverStatementBuildService>();
 
         // Security
         services.AddScoped<IPasswordHasher, PasswordHasher>();
