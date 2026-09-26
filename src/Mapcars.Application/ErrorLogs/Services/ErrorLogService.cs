@@ -17,6 +17,8 @@ namespace Mapcars.Application.ErrorLogs.Services;
 /// 2. <b>Client input is untrusted.</b> Anyone can POST to the report endpoint,
 ///    so every string is length-capped and the enums are parsed rather than
 ///    cast. Identity and IP come from the request context, never the payload.
+/// 3. <b>No secrets at rest.</b> Free text goes through <see cref="SecretRedactor"/>
+///    on every write — this table is admin-readable and long-lived.
 /// </summary>
 public class ErrorLogService : IErrorLogService
 {
@@ -44,10 +46,12 @@ public class ErrorLogService : IErrorLogService
     {
         try
         {
-            log.Message = Trim(log.Message, MaxMessage) ?? "(no message)";
+            // Redact BEFORE trimming, so a cap can't cut a key in half and leave
+            // the head of it unrecognisable to the redactor.
+            log.Message = Trim(SecretRedactor.Redact(log.Message), MaxMessage) ?? "(no message)";
             log.ExceptionType = Trim(log.ExceptionType, MaxType);
-            log.StackTrace = Trim(log.StackTrace, MaxStack);
-            log.Path = Trim(log.Path, MaxPath);
+            log.StackTrace = Trim(SecretRedactor.Redact(log.StackTrace), MaxStack);
+            log.Path = Trim(SecretRedactor.Redact(log.Path), MaxPath);
             log.AppVersion = Trim(log.AppVersion, MaxShort);
             log.Platform = Trim(log.Platform, MaxShort);
             log.UserAgent = Trim(log.UserAgent, MaxUserAgent);
