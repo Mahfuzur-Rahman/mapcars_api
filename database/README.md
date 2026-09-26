@@ -100,6 +100,8 @@ so re-running them is safe.
 | `039_password_reset_and_otp_attempts.sql` | `verification_codes` (+ `attempt_count`, provider `'reset'`). Self-service password reset, and a cap of 5 wrong guesses per code for every OTP flow (guessing was unlimited). **Applied 2026-09-26.** Additive — the new image REQUIRES it, the old one ignores it |
 | `040_apple_sign_in.sql` | `customers`, `drivers` (+ `apple_sub`, unique where present). Sign in with Apple — App Review 4.8 requires it alongside Google. **Applied 2026-09-26.** Additive — the new image REQUIRES it, the old one ignores it |
 | `041_driver_statements.sql` | `driver_statements`, `driver_statement_lines` (new). Weekly driver statements in integer pence; signed lines (card = owed to driver, cash = commission owed to us); unique per driver-week and per trip. **Applied 2026-09-26.** Additive — the new image REQUIRES it (hourly build job) |
+| `042_statements_menu.sql` | `menus`/`role_menus`: "Statements" under Payments (`/admin/payments/statements`), SuperAdmin + Admin, seeded **inactive**. **Applied 2026-09-26** (row 57, hidden) |
+| `043_activate_statements_menu.sql` | Reveals row 57. ⚠️ **Run at deploy time, AFTER the web build with the statements page is live** |
 
 ## Conventions
 
