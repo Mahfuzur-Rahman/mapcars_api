@@ -74,6 +74,7 @@ public static class DependencyInjection
         services.AddScoped<IMessageRepository, MessageRepository>();
         services.AddScoped<IDriverPayoutAccountRepository, DriverPayoutAccountRepository>();
         services.AddScoped<IPayoutRepository, PayoutRepository>();
+        services.AddScoped<ICustomerPaymentMethodRepository, CustomerPaymentMethodRepository>();
         services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IPosterRepository, PosterRepository>();

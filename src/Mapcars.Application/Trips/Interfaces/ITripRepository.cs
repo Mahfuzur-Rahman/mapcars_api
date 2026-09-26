@@ -33,6 +33,12 @@ public interface ITripRepository : IGenericRepository<Trip>
     /// </summary>
     Task<bool> TryExpireAsync(Guid tripId, DateTime nowUtc, CancellationToken ct = default);
 
+    /// <summary>
+    /// What this customer owes: card fares that failed and were never recovered or
+    /// waived, in GBP (fare + tip). The input to the booking debt block.
+    /// </summary>
+    Task<decimal> GetUnpaidCardDebtAsync(Guid customerId, CancellationToken ct = default);
+
     /// <summary>True if the driver is on a live trip (assigned / arrived / in-progress) — i.e. not free to dispatch.</summary>
     Task<bool> HasActiveTripAsync(Guid driverId, CancellationToken ct = default);
 

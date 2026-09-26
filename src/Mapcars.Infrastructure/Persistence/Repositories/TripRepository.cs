@@ -69,6 +69,14 @@ public class TripRepository : GenericRepository<Trip>, ITripRepository
         return rows == 1;
     }
 
+    public async Task<decimal> GetUnpaidCardDebtAsync(Guid customerId, CancellationToken ct = default)
+        => await Set.AsNoTracking()
+            .Where(t => t.CustomerId == customerId
+                        && t.PaymentMethod == PaymentMethod.Card
+                        && t.PaymentStatus == PaymentStatus.Failed
+                        && t.PaymentWaivedAtUtc == null)
+            .SumAsync(t => (decimal?)((t.FareAmount ?? 0m) + t.TipAmount), ct) ?? 0m;
+
     public Task<bool> HasActiveTripAsync(Guid driverId, CancellationToken ct = default)
         => Set.AsNoTracking().AnyAsync(
             t => t.DriverId == driverId &&

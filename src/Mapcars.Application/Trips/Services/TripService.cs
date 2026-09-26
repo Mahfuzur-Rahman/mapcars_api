@@ -7,6 +7,8 @@ using Mapcars.Application.Drivers.Interfaces;
 using Mapcars.Application.Drivers;
 using Mapcars.Application.Notifications.Dtos;
 using Mapcars.Application.Notifications.Interfaces;
+using Mapcars.Application.Payments;
+using Mapcars.Application.Payments.Interfaces;
 using Mapcars.Application.Pricing.Dtos;
 using Mapcars.Application.Pricing.Interfaces;
 using Mapcars.Application.Pricing;
@@ -19,6 +21,7 @@ using Mapcars.Application.Trips.Dtos;
 using Mapcars.Application.Trips.Interfaces;
 using Mapcars.Application.Trips.Mapping;
 using Mapcars.Application.Vehicles.Interfaces;
+using Mapcars.Application.Common;
 using Mapcars.Domain.Constants;
 using Mapcars.Domain.Entities;
 using Mapcars.Domain.Enums;
@@ -44,6 +47,7 @@ public class TripService : ITripService
     private readonly IDispatchService _dispatch;
     private readonly IPushService _push;
     private readonly ISettingsStore _settings;
+    private readonly ICustomerPaymentMethodRepository _cards;
 
     public TripService(
         ITripRepository trips,
@@ -55,7 +59,8 @@ public class TripService : ITripService
         ITripNotifier notifier,
         IDispatchService dispatch,
         IPushService push,
-        ISettingsStore settings)
+        ISettingsStore settings,
+        ICustomerPaymentMethodRepository cards)
     {
         _trips = trips;
         _customers = customers;
@@ -67,6 +72,7 @@ public class TripService : ITripService
         _dispatch = dispatch;
         _push = push;
         _settings = settings;
+        _cards = cards;
     }
 
     public async Task<IReadOnlyList<TripResponse>> ListForCustomerAsync(Guid customerId, CancellationToken ct = default)
@@ -162,6 +168,16 @@ public class TripService : ITripService
 
     public async Task<TripResponse> CreateAsync(Guid customerId, CreateTripRequest req, CancellationToken ct = default)
     {
+        // Payment eligibility before anything else: the admin switches, a saved
+        // card for a card booking, and the unpaid-balance block.
+        var paymentMethod = ParsePaymentMethod(req.PaymentMethod);
+        var payments = await _settings.GetAsync<PaymentSettings>(SettingKeys.Payments, ct);
+        var card = paymentMethod == PaymentMethod.Card ? await _cards.GetChargeableAsync(customerId, ct) : null;
+        var debtPence = Money.ToPence(await _trips.GetUnpaidCardDebtAsync(customerId, ct));
+
+        var eligibility = CustomerPaymentEligibility.Check(payments, paymentMethod, card is not null, debtPence);
+        if (!eligibility.Allowed) throw new DomainException(eligibility.Reason!);
+
         // Authoritative price for the chosen tier (route metrics are clamped inside).
         var fare = await _pricing.PriceTierAsync(
             req.RideOptionId,
@@ -192,10 +208,13 @@ public class TripService : ITripService
             DriverEarnings = Gbp(fare.DriverEarningsPence),
             FareChartVersion = chart.Version,
 
-            // Payment: cash by default (settled in person on completion — no charge).
-            // Card is accepted here but not yet charged; Stripe capture lands next.
-            PaymentMethod = ParsePaymentMethod(req.PaymentMethod),
+            // Payment: cash is settled in person on completion. Card is only
+            // accepted once CustomerPaymentEligibility has passed it above.
+            PaymentMethod = paymentMethod,
             PaymentStatus = PaymentStatus.Pending,
+            // Snapshot the card at booking, so the charge at drop-off can't land
+            // on a card the customer added mid-trip without choosing it.
+            CustomerPaymentMethodId = card?.Id,
 
             // The search window. Set here rather than defaulted on the entity so
             // there is one obvious place where a request's deadline begins.
