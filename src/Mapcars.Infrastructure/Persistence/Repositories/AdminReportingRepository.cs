@@ -39,6 +39,114 @@ public class AdminReportingRepository(AppDbContext db) : IAdminReportingReposito
             activeTrips, tripsToday, completedToday, revenueToday, grossFaresToday);
     }
 
+    public async Task<AdminTransactionsPage> ListTransactionsAsync(
+        PaymentMethod? method, PaymentStatus? paymentStatus, DateTime? fromUtc, DateTime? toUtc,
+        int skip, int take, CancellationToken ct = default)
+    {
+        // Completed only: nothing is owed on a cancelled or expired trip (those
+        // are Voided), so they would be rows of zeros on a money page.
+        var q = db.Trips.AsNoTracking().Where(t => t.Status == TripStatus.Completed);
+        if (method.HasValue) q = q.Where(t => t.PaymentMethod == method.Value);
+        if (paymentStatus.HasValue) q = q.Where(t => t.PaymentStatus == paymentStatus.Value);
+        if (fromUtc.HasValue) q = q.Where(t => t.CompletedAtUtc >= fromUtc.Value);
+        if (toUtc.HasValue) q = q.Where(t => t.CompletedAtUtc < toUtc.Value);
+
+        // Totals over the whole filtered set, as conditional sums in one query.
+        var totals = await q
+            .GroupBy(_ => 1)
+            .Select(g => new AdminTransactionTotals(
+                g.Count(),
+                g.Sum(t => t.FareAmount ?? 0m),
+                g.Sum(t => t.TipAmount),
+                g.Sum(t => t.PlatformFeeAmount ?? 0m),
+                g.Sum(t => t.DriverEarnings ?? 0m),
+                g.Sum(t => t.PaymentMethod == PaymentMethod.Cash && t.PaymentStatus == PaymentStatus.Collected
+                    ? (t.FareAmount ?? 0m) + t.TipAmount : 0m),
+                g.Sum(t => t.PaymentMethod == PaymentMethod.Card && t.PaymentStatus == PaymentStatus.Collected
+                    ? (t.FareAmount ?? 0m) + t.TipAmount : 0m),
+                g.Sum(t => t.PaymentMethod == PaymentMethod.Card
+                           && (t.PaymentStatus == PaymentStatus.Failed || t.PaymentStatus == PaymentStatus.ActionRequired)
+                           && t.PaymentWaivedAtUtc == null
+                    ? (t.FareAmount ?? 0m) + t.TipAmount : 0m)))
+            .FirstOrDefaultAsync(ct)
+            ?? new AdminTransactionTotals(0, 0m, 0m, 0m, 0m, 0m, 0m, 0m);
+
+        var rows = await q
+            .OrderByDescending(t => t.CompletedAtUtc)
+            .Skip(skip)
+            .Take(take)
+            .Select(t => new
+            {
+                t.Id,
+                t.CompletedAtUtc,
+                CustomerName = t.Customer != null ? t.Customer.FullName : null,
+                DriverName = t.Driver != null ? t.Driver.FullName : null,
+                t.Tier,
+                t.PaymentMethod,
+                t.PaymentStatus,
+                t.FareAmount,
+                t.TipAmount,
+                t.PlatformFeeAmount,
+                t.DriverEarnings,
+                t.PaidAtUtc,
+                t.PaymentFailureCode,
+                t.StripePaymentIntentId,
+                t.PaymentWaivedAtUtc,
+            })
+            .ToListAsync(ct);
+
+        var items = rows.Select(r => new AdminTransactionItem(
+                r.Id, r.CompletedAtUtc ?? default, r.CustomerName, r.DriverName, r.Tier,
+                r.PaymentMethod.ToString(), r.PaymentStatus.ToString(),
+                r.FareAmount ?? 0m, r.TipAmount, r.PlatformFeeAmount ?? 0m, r.DriverEarnings ?? 0m,
+                r.PaidAtUtc, r.PaymentFailureCode, r.StripePaymentIntentId, r.PaymentWaivedAtUtc != null))
+            .ToList();
+
+        return new AdminTransactionsPage(items, totals, skip, take);
+    }
+
+    public async Task<AdminPayoutsPage> ListPayoutsAsync(
+        PayoutStatus? status, int skip, int take, CancellationToken ct = default)
+    {
+        var q = db.Payouts.AsNoTracking().AsQueryable();
+        if (status.HasValue) q = q.Where(p => p.Status == status.Value);
+
+        var totals = await q
+            .GroupBy(_ => 1)
+            .Select(g => new AdminPayoutTotals(
+                g.Count(),
+                g.Sum(p => p.Status == PayoutStatus.Paid ? p.Amount : 0m),
+                g.Sum(p => p.Status == PayoutStatus.Pending || p.Status == PayoutStatus.InTransit ? p.Amount : 0m),
+                g.Sum(p => p.Status == PayoutStatus.Failed ? p.Amount : 0m)))
+            .FirstOrDefaultAsync(ct)
+            ?? new AdminPayoutTotals(0, 0m, 0m, 0m);
+
+        var rows = await q
+            .OrderByDescending(p => p.CreatedAtUtc)
+            .Skip(skip)
+            .Take(take)
+            .Select(p => new
+            {
+                p.Id,
+                p.DriverId,
+                DriverName = p.Driver != null ? p.Driver.FullName : null,
+                p.Amount,
+                p.Currency,
+                p.Status,
+                p.StripePayoutId,
+                p.CreatedAtUtc,
+                p.ArrivedAtUtc,
+            })
+            .ToListAsync(ct);
+
+        var items = rows.Select(r => new AdminPayoutItem(
+                r.Id, r.DriverId, r.DriverName, r.Amount, r.Currency, r.Status.ToString(),
+                r.StripePayoutId, r.CreatedAtUtc, r.ArrivedAtUtc))
+            .ToList();
+
+        return new AdminPayoutsPage(items, totals, skip, take);
+    }
+
     public async Task<IReadOnlyList<AdminTripListItem>> ListTripsAsync(
         TripStatus? status, int skip, int take, CancellationToken ct = default)
     {

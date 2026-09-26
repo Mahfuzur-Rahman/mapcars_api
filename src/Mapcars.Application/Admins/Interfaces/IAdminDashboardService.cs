@@ -12,4 +12,11 @@ public interface IAdminDashboardService
         string? status, int skip, int take, CancellationToken ct = default);
 
     Task<AdminLiveResponse> GetLiveAsync(CancellationToken ct = default);
+
+    /// <summary>Filters are enum names (case-insensitive); blank or unrecognised = no filter on that axis.</summary>
+    Task<AdminTransactionsPage> ListTransactionsAsync(
+        string? method, string? paymentStatus, DateTime? fromUtc, DateTime? toUtc,
+        int skip, int take, CancellationToken ct = default);
+
+    Task<AdminPayoutsPage> ListPayoutsAsync(string? status, int skip, int take, CancellationToken ct = default);
 }

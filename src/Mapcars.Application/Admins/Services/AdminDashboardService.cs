@@ -46,6 +46,22 @@ public class AdminDashboardService(
         return reporting.ListTripsAsync(parsed, skip, take, ct);
     }
 
+    public Task<AdminTransactionsPage> ListTransactionsAsync(
+        string? method, string? paymentStatus, DateTime? fromUtc, DateTime? toUtc,
+        int skip, int take, CancellationToken ct = default)
+        => reporting.ListTransactionsAsync(
+            ParseOrNull<PaymentMethod>(method), ParseOrNull<PaymentStatus>(paymentStatus),
+            fromUtc, toUtc, Math.Max(0, skip), Math.Clamp(take, 1, 200), ct);
+
+    public Task<AdminPayoutsPage> ListPayoutsAsync(string? status, int skip, int take, CancellationToken ct = default)
+        => reporting.ListPayoutsAsync(
+            ParseOrNull<PayoutStatus>(status), Math.Max(0, skip), Math.Clamp(take, 1, 200), ct);
+
+    private static T? ParseOrNull<T>(string? value) where T : struct, Enum
+        => !string.IsNullOrWhiteSpace(value) && Enum.TryParse<T>(value, ignoreCase: true, out var parsed)
+            ? parsed
+            : null;
+
     public async Task<AdminLiveResponse> GetLiveAsync(CancellationToken ct = default)
     {
         var activeTrips = await reporting.ListActiveTripsAsync(ct);

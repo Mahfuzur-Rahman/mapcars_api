@@ -30,6 +30,34 @@ public class AdminDashboardController(IAdminDashboardService dashboard) : Contro
         CancellationToken ct = default)
         => Ok(await dashboard.ListTripsAsync(status, skip, take, ct));
 
+    /// <summary>
+    /// Money on completed trips: fare, commission, driver share and the customer's
+    /// real payment state. Filters: <paramref name="method"/> (Cash|Card),
+    /// <paramref name="paymentStatus"/> (a PaymentStatus name), and a completion
+    /// window in UTC. Totals cover the whole filtered range.
+    /// </summary>
+    [HttpGet("transactions")]
+    [ProducesResponseType(typeof(AdminTransactionsPage), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Transactions(
+        [FromQuery] string? method,
+        [FromQuery] string? paymentStatus,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        [FromQuery] int skip = 0,
+        [FromQuery] int take = 50,
+        CancellationToken ct = default)
+        => Ok(await dashboard.ListTransactionsAsync(method, paymentStatus, from, to, skip, take, ct));
+
+    /// <summary>Driver payouts, optionally filtered by <paramref name="status"/> (a PayoutStatus name).</summary>
+    [HttpGet("payouts")]
+    [ProducesResponseType(typeof(AdminPayoutsPage), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Payouts(
+        [FromQuery] string? status,
+        [FromQuery] int skip = 0,
+        [FromQuery] int take = 50,
+        CancellationToken ct = default)
+        => Ok(await dashboard.ListPayoutsAsync(status, skip, take, ct));
+
     /// <summary>Live map payload: in-flight trips + currently-online drivers.</summary>
     [HttpGet("live")]
     [ProducesResponseType(typeof(AdminLiveResponse), StatusCodes.Status200OK)]

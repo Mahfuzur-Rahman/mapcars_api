@@ -16,6 +16,19 @@ public interface IAdminReportingRepository
     Task<IReadOnlyList<AdminTripListItem>> ListTripsAsync(
         TripStatus? status, int skip, int take, CancellationToken ct = default);
 
+    /// <summary>
+    /// Completed trips (the only ones money moves on), most recent first, filtered
+    /// by method / payment status / completion window, with totals over the whole
+    /// filtered set.
+    /// </summary>
+    Task<AdminTransactionsPage> ListTransactionsAsync(
+        PaymentMethod? method, PaymentStatus? paymentStatus, DateTime? fromUtc, DateTime? toUtc,
+        int skip, int take, CancellationToken ct = default);
+
+    /// <summary>Driver payouts, most recent first, optionally filtered by status.</summary>
+    Task<AdminPayoutsPage> ListPayoutsAsync(
+        PayoutStatus? status, int skip, int take, CancellationToken ct = default);
+
     /// <summary>In-flight trips (requested / assigned / arrived / in-progress) for the live map.</summary>
     Task<IReadOnlyList<AdminActiveTrip>> ListActiveTripsAsync(CancellationToken ct = default);
 
