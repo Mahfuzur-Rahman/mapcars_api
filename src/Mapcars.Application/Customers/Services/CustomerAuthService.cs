@@ -17,6 +17,7 @@ public class CustomerAuthService(
     IPasswordHasher hasher,
     IOtpService otpService,
     IGoogleAuthService googleAuth,
+    IAppleAuthService appleAuth,
     IJwtService jwt,
     IRefreshTokenService refreshTokens,
     IFileStorageService storage,
@@ -199,6 +200,59 @@ public class CustomerAuthService(
                     Email = email,
                     FullName = string.IsNullOrEmpty(info.Name) ? null : info.Name,
                     GoogleSub = info.Sub,
+                    IsEmailVerified = email is not null,
+                    IsActive = true,
+                };
+                await repo.AddAsync(customer, ct);
+            }
+
+            await uow.SaveChangesAsync(ct);
+        }
+
+        if (!customer.IsActive)
+            throw new UnauthorizedException("Your account has been disabled.");
+
+        return await BuildResponseAsync(customer, ct);
+    }
+
+    // ── Apple ─────────────────────────────────────────────────────────────────
+
+    public async Task<AuthResponse> SignInWithAppleAsync(AppleAuthRequest request, CancellationToken ct = default)
+    {
+        if (!appleAuth.IsConfigured)
+            throw new DomainException("Sign in with Apple isn't available yet. Please use your email or phone number.");
+
+        var info = await appleAuth.VerifyIdTokenAsync(request.IdToken, request.Nonce, ct)
+            ?? throw new UnauthorizedException("Invalid Apple sign-in.");
+
+        // Same rule as Google: only a verified address may link to an existing
+        // account. Apple only sends the email on the first authorisation, so on
+        // every later sign-in the account is found by apple_sub alone.
+        var email = info.EmailVerified && !string.IsNullOrWhiteSpace(info.Email)
+            ? info.Email.ToLowerInvariant().Trim()
+            : null;
+
+        var customer = await repo.FindByAppleSubAsync(info.Sub, ct);
+        if (customer is null)
+        {
+            customer = email is null ? null : await repo.FindByEmailAsync(email, ct);
+
+            if (customer is not null)
+            {
+                customer.AppleSub = info.Sub;
+                customer.IsEmailVerified = true;
+            }
+            else
+            {
+                if (!request.SignUp)
+                    throw new UnauthorizedException(
+                        "We couldn't find a Mapcars account for that Apple ID. Please sign up first.");
+
+                customer = new Customer
+                {
+                    Email = email,
+                    FullName = string.IsNullOrWhiteSpace(request.FullName) ? null : request.FullName.Trim(),
+                    AppleSub = info.Sub,
                     IsEmailVerified = email is not null,
                     IsActive = true,
                 };

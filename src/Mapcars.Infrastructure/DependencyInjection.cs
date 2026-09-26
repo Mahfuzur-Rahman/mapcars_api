@@ -128,6 +128,7 @@ public static class DependencyInjection
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IOtpService, OtpService>();
         services.AddScoped<IGoogleAuthService, GoogleAuthService>();
+        services.AddSingleton<IAppleAuthService, AppleAuthService>(); // caches Apple's signing keys
 
         // Storage — driven by Storage:Provider ("LocalDisk" | "R2"); defaults to
         // local disk. R2 is a private, S3-compatible bucket (reads are always

@@ -12,6 +12,7 @@ public interface IDriverRepository : IGenericRepository<Driver>
     Task<Driver?> FindByEmailAsync(string email, CancellationToken ct = default);
     Task<Driver?> FindByPhoneAsync(string phone, CancellationToken ct = default);
     Task<Driver?> FindByGoogleSubAsync(string googleSub, CancellationToken ct = default);
+    Task<Driver?> FindByAppleSubAsync(string appleSub, CancellationToken ct = default);
     Task<bool> PhoneExistsAsync(string phone, CancellationToken ct = default);
     Task<Driver?> FindByNationalIdNumberAsync(string nationalIdNumber, CancellationToken ct = default);
     Task<Driver?> FindByPassportNumberAsync(string passportNumber, CancellationToken ct = default);

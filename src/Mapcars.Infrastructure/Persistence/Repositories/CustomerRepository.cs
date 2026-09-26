@@ -20,6 +20,9 @@ public class CustomerRepository : GenericRepository<Customer>, ICustomerReposito
     public Task<Customer?> FindByGoogleSubAsync(string googleSub, CancellationToken ct = default)
         => Set.FirstOrDefaultAsync(r => r.GoogleSub == googleSub, ct);
 
+    public Task<Customer?> FindByAppleSubAsync(string appleSub, CancellationToken ct = default)
+        => Set.FirstOrDefaultAsync(r => r.AppleSub == appleSub, ct);
+
     public Task<bool> PhoneExistsAsync(string phone, CancellationToken ct = default)
         => Set.AnyAsync(r => r.PhoneNumber == phone, ct);
 }

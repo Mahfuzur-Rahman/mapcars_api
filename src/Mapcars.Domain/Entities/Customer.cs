@@ -9,6 +9,9 @@ public class Customer : BaseEntity
     public string? PhoneNumber { get; set; }
     public string? PasswordHash { get; set; }
     public string? GoogleSub { get; set; }
+
+    /// <summary>Sign in with Apple's stable user id (migration 040).</summary>
+    public string? AppleSub { get; set; }
     public bool IsEmailVerified { get; set; }
     public bool IsPhoneVerified { get; set; }
     public bool IsActive { get; set; } = true;

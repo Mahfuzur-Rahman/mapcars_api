@@ -21,6 +21,7 @@ public class DriverAuthService(
     IPasswordHasher hasher,
     IOtpService otpService,
     IGoogleAuthService googleAuth,
+    IAppleAuthService appleAuth,
     IJwtService jwt,
     IRefreshTokenService refreshTokens,
     IFileStorageService storage,
@@ -202,6 +203,57 @@ public class DriverAuthService(
                     Email = email,
                     FullName = string.IsNullOrEmpty(info.Name) ? null : info.Name,
                     GoogleSub = info.Sub,
+                    IsEmailVerified = email is not null,
+                    Status = DriverStatus.PendingApproval,
+                };
+                await repo.AddAsync(driver, ct);
+            }
+
+            await uow.SaveChangesAsync(ct);
+        }
+
+        return await BuildResponseAsync(driver, ct);
+    }
+
+    // ── Apple ─────────────────────────────────────────────────────────────────
+
+    public async Task<AuthResponse> SignInWithAppleAsync(AppleAuthRequest request, CancellationToken ct = default)
+    {
+        if (!appleAuth.IsConfigured)
+            throw new DomainException("Sign in with Apple isn't available yet. Please use your email or phone number.");
+
+        var info = await appleAuth.VerifyIdTokenAsync(request.IdToken, request.Nonce, ct)
+            ?? throw new UnauthorizedException("Invalid Apple sign-in.");
+
+        // See CustomerAuthService: identified by apple_sub, linked only by a
+        // verified email (Apple sends it on the first authorisation only).
+        var email = info.EmailVerified && !string.IsNullOrWhiteSpace(info.Email)
+            ? info.Email.ToLowerInvariant().Trim()
+            : null;
+
+        var driver = await repo.FindByAppleSubAsync(info.Sub, ct);
+        if (driver is null)
+        {
+            driver = email is null ? null : await repo.FindByEmailAsync(email, ct);
+
+            if (driver is not null)
+            {
+                driver.AppleSub = info.Sub;
+                driver.IsEmailVerified = true;
+            }
+            else
+            {
+                if (!request.SignUp)
+                    throw new UnauthorizedException(
+                        "We couldn't find a Mapcars driver account for that Apple ID. Please sign up first.");
+
+                // A new driver starts unapproved, exactly as with Google or email:
+                // signing in with Apple proves who they are, not that they may drive.
+                driver = new Driver
+                {
+                    Email = email,
+                    FullName = string.IsNullOrWhiteSpace(request.FullName) ? null : request.FullName.Trim(),
+                    AppleSub = info.Sub,
                     IsEmailVerified = email is not null,
                     Status = DriverStatus.PendingApproval,
                 };

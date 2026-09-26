@@ -47,6 +47,12 @@ public class DriverAuthController(IDriverAuthService authService) : ControllerBa
     public async Task<IActionResult> Google([FromBody] DriverGoogleAuthRequest req, CancellationToken ct)
         => Ok(await authService.SignInWithGoogleAsync(req.IdToken, req.SignUp, ct));
 
+    /// <summary>Sign in with Apple — the identity token plus the raw nonce the app generated.</summary>
+    [HttpPost("apple")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> Apple([FromBody] AppleAuthRequest req, CancellationToken ct)
+        => Ok(await authService.SignInWithAppleAsync(req, ct));
+
     /// <summary>Fetch the authenticated driver's full profile.</summary>
     [HttpGet("me")]
     [Authorize]

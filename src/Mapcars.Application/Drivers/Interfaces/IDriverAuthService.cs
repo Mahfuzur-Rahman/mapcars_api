@@ -25,6 +25,9 @@ public interface IDriverAuthService
     /// </summary>
     Task<AuthResponse> SignInWithGoogleAsync(string idToken, bool signUp = false, CancellationToken ct = default);
 
+    /// <summary>Sign in with Apple — same account rules as Google: identified by the Apple sub, linked by a verified email.</summary>
+    Task<AuthResponse> SignInWithAppleAsync(AppleAuthRequest request, CancellationToken ct = default);
+
     // Profile
     Task<DriverProfileResponse> GetProfileAsync(Guid driverId, CancellationToken ct = default);
     Task<DriverProfileResponse> UpdateProfileAsync(Guid driverId, UpdateDriverProfileRequest req, CancellationToken ct = default);

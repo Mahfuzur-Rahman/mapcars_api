@@ -26,6 +26,9 @@ public class DriverRepository : GenericRepository<Driver>, IDriverRepository
     public Task<Driver?> FindByGoogleSubAsync(string googleSub, CancellationToken ct = default)
         => Set.FirstOrDefaultAsync(d => d.GoogleSub == googleSub, ct);
 
+    public Task<Driver?> FindByAppleSubAsync(string appleSub, CancellationToken ct = default)
+        => Set.FirstOrDefaultAsync(d => d.AppleSub == appleSub, ct);
+
     public Task<bool> PhoneExistsAsync(string phone, CancellationToken ct = default)
         => Set.AnyAsync(d => d.PhoneNumber == phone, ct);
 

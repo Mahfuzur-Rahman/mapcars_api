@@ -25,6 +25,9 @@ public interface ICustomerAuthService
     /// </summary>
     Task<AuthResponse> SignInWithGoogleAsync(string idToken, bool signUp = false, CancellationToken ct = default);
 
+    /// <summary>Sign in with Apple — same account rules as Google: identified by the Apple sub, linked by a verified email.</summary>
+    Task<AuthResponse> SignInWithAppleAsync(AppleAuthRequest request, CancellationToken ct = default);
+
     // Profile
     Task<CustomerProfileResponse> GetProfileAsync(Guid customerId, CancellationToken ct = default);
     Task<CustomerProfileResponse> UpdateProfileAsync(Guid customerId, UpdateProfileRequest request, CancellationToken ct = default);
