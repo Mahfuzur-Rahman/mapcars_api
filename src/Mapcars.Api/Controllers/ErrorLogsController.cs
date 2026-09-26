@@ -69,7 +69,7 @@ public class ErrorLogsController : ControllerBase
 
 /// <summary>
 /// The Error Logger page in the admin portal. SuperAdmin and Admin only —
-/// stack traces and user ids are not something a rider or driver token should
+/// stack traces and user ids are not something a customer or driver token should
 /// ever reach.
 /// </summary>
 [ApiController]

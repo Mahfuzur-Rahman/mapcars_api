@@ -19,6 +19,25 @@ public class TripConfiguration : IEntityTypeConfiguration<Trip>
         builder.Property(t => t.FareAmount).HasPrecision(10, 2);
         builder.Property(t => t.TipAmount).HasPrecision(10, 2);
 
+        // Card charge state. trips uses all-PascalCase quoted columns, so these map
+        // by convention; only the string lengths and the FK need stating.
+        builder.Property(t => t.StripePaymentIntentId).HasMaxLength(255);
+        builder.Property(t => t.PaymentFailureCode).HasMaxLength(60);
+        builder.Property(t => t.PaymentFailureMessage).HasMaxLength(500);
+
+        // Unique so a webhook can look a trip up by its intent, and so one intent
+        // can never be attached to two trips.
+        builder.HasIndex(t => t.StripePaymentIntentId)
+            .IsUnique()
+            .HasFilter("\"StripePaymentIntentId\" IS NOT NULL");
+
+        builder.HasOne(t => t.CustomerPaymentMethod)
+            .WithMany()
+            .HasForeignKey(t => t.CustomerPaymentMethodId)
+            // SET NULL, never CASCADE: deleting a saved card must not delete the
+            // trip it paid for. The trip is a financial record.
+            .OnDelete(DeleteBehavior.SetNull);
+
         // Payment (stored as strings, mirroring Status).
         builder.Property(t => t.PaymentMethod).HasConversion<string>().HasMaxLength(20);
         builder.Property(t => t.PaymentStatus).HasConversion<string>().HasMaxLength(20);
@@ -31,12 +50,21 @@ public class TripConfiguration : IEntityTypeConfiguration<Trip>
 
         // Lifecycle/cancellation — new PascalCase columns, matching this table's
         // existing convention (even later additions like the pricing snapshot
-        // above stayed PascalCase, unlike riders/drivers).
+        // above stayed PascalCase, unlike customers/drivers).
         builder.Property(t => t.CancelledReason).HasMaxLength(500);
 
-        builder.HasOne(t => t.Rider)
+        // The ONLY mapping in this file EF was deriving by convention, and the one
+        // that made the C# rename and the database rename inseparable: with
+        // Trip.RiderId the convention produced "RiderId" by accident, so renaming
+        // the property silently retargeted EF at a "CustomerId" column that does
+        // not exist until 031. It compiles and then fails on every trip query.
+        // Pinned explicitly so the two can never drift again; the literal flips to
+        // "CustomerId" in the same commit as the migration.
+        builder.Property(t => t.CustomerId).HasColumnName("CustomerId");
+
+        builder.HasOne(t => t.Customer)
             .WithMany(r => r.Trips)
-            .HasForeignKey(t => t.RiderId)
+            .HasForeignKey(t => t.CustomerId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(t => t.Driver)

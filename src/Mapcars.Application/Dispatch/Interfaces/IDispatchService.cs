@@ -9,7 +9,7 @@ namespace Mapcars.Application.Dispatch.Interfaces;
 /// </summary>
 public enum DispatchWithdrawReason
 {
-    /// <summary>Another driver accepted it, or the rider cancelled it.</summary>
+    /// <summary>Another driver accepted it, or the customer cancelled it.</summary>
     Taken,
 
     /// <summary>Its search window ran out with nobody accepting.</summary>

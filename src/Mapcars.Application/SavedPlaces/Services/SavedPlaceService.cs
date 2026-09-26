@@ -9,8 +9,8 @@ using Mapcars.Domain.Exceptions;
 namespace Mapcars.Application.SavedPlaces.Services;
 
 /// <summary>
-/// Business logic for a rider's saved places (Home/Work/custom). Every
-/// operation is scoped to the calling rider — a rider can only ever read or
+/// Business logic for a customer's saved places (Home/Work/custom). Every
+/// operation is scoped to the calling customer — a customer can only ever read or
 /// change their own saved places.
 /// </summary>
 public class SavedPlaceService : ISavedPlaceService
@@ -24,20 +24,20 @@ public class SavedPlaceService : ISavedPlaceService
         _uow = uow;
     }
 
-    public async Task<IReadOnlyList<SavedPlaceResponse>> ListForRiderAsync(Guid riderId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<SavedPlaceResponse>> ListForCustomerAsync(Guid customerId, CancellationToken ct = default)
     {
-        var places = await _places.ListForRiderAsync(riderId, ct);
+        var places = await _places.ListForCustomerAsync(customerId, ct);
         return places.Select(p => p.ToResponse()).ToList();
     }
 
-    public async Task<SavedPlaceResponse> CreateAsync(Guid riderId, UpsertSavedPlaceRequest request, CancellationToken ct = default)
+    public async Task<SavedPlaceResponse> CreateAsync(Guid customerId, UpsertSavedPlaceRequest request, CancellationToken ct = default)
     {
         var label = request.Label.Trim();
-        await EnsureLabelNotTaken(riderId, label, excludingPlaceId: null, ct);
+        await EnsureLabelNotTaken(customerId, label, excludingPlaceId: null, ct);
 
         var place = new SavedPlace
         {
-            RiderId = riderId,
+            CustomerId = customerId,
             Label = label,
             Address = request.Address.Trim(),
             Lat = request.Lat,
@@ -49,12 +49,12 @@ public class SavedPlaceService : ISavedPlaceService
         return place.ToResponse();
     }
 
-    public async Task<SavedPlaceResponse> UpdateAsync(Guid riderId, Guid placeId, UpsertSavedPlaceRequest request, CancellationToken ct = default)
+    public async Task<SavedPlaceResponse> UpdateAsync(Guid customerId, Guid placeId, UpsertSavedPlaceRequest request, CancellationToken ct = default)
     {
-        var place = await GetOwnedAsync(riderId, placeId, ct);
+        var place = await GetOwnedAsync(customerId, placeId, ct);
 
         var label = request.Label.Trim();
-        await EnsureLabelNotTaken(riderId, label, excludingPlaceId: placeId, ct);
+        await EnsureLabelNotTaken(customerId, label, excludingPlaceId: placeId, ct);
 
         place.Label = label;
         place.Address = request.Address.Trim();
@@ -66,26 +66,26 @@ public class SavedPlaceService : ISavedPlaceService
         return place.ToResponse();
     }
 
-    public async Task DeleteAsync(Guid riderId, Guid placeId, CancellationToken ct = default)
+    public async Task DeleteAsync(Guid customerId, Guid placeId, CancellationToken ct = default)
     {
-        var place = await GetOwnedAsync(riderId, placeId, ct);
+        var place = await GetOwnedAsync(customerId, placeId, ct);
         _places.Remove(place);
         await _uow.SaveChangesAsync(ct);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private async Task<SavedPlace> GetOwnedAsync(Guid riderId, Guid placeId, CancellationToken ct)
+    private async Task<SavedPlace> GetOwnedAsync(Guid customerId, Guid placeId, CancellationToken ct)
     {
         var place = await _places.GetByIdAsync(placeId, ct);
-        if (place is null || place.RiderId != riderId)
+        if (place is null || place.CustomerId != customerId)
             throw new NotFoundException("SavedPlace", placeId);
         return place;
     }
 
-    private async Task EnsureLabelNotTaken(Guid riderId, string label, Guid? excludingPlaceId, CancellationToken ct)
+    private async Task EnsureLabelNotTaken(Guid customerId, string label, Guid? excludingPlaceId, CancellationToken ct)
     {
-        var existing = await _places.ListForRiderAsync(riderId, ct);
+        var existing = await _places.ListForCustomerAsync(customerId, ct);
         var clash = existing.Any(p =>
             p.Id != excludingPlaceId && string.Equals(p.Label, label, StringComparison.OrdinalIgnoreCase));
         if (clash)

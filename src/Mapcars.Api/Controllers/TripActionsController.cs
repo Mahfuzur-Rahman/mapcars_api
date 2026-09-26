@@ -3,13 +3,14 @@ using Mapcars.Application.Geo.Dtos;
 using Mapcars.Application.Geo.Interfaces;
 using Mapcars.Application.Trips.Dtos;
 using Mapcars.Application.Trips.Interfaces;
+using Mapcars.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Mapcars.Api.Controllers;
 
 /// <summary>
-/// Trip actions valid for either party. Kept separate from the rider-only
+/// Trip actions valid for either party. Kept separate from the customer-only
 /// <see cref="TripsController"/> and driver-only <see cref="DriverTripsController"/>
 /// so this one endpoint isn't role-restricted to a single side.
 /// </summary>
@@ -29,7 +30,7 @@ public class TripActionsController : ControllerBase
 
     /// <summary>
     /// Returns the caller's currently active trip (requested, assigned, arrived, or in-progress)
-    /// with full driver/rider info and meet-up PIN, or 204 NoContent if there is none.
+    /// with full driver/customer info and meet-up PIN, or 204 NoContent if there is none.
     /// </summary>
     [HttpGet("active")]
     [ProducesResponseType(typeof(TripResponse), StatusCodes.Status200OK)]
@@ -43,7 +44,7 @@ public class TripActionsController : ControllerBase
         return trip is null ? NoContent() : Ok(trip);
     }
 
-    /// <summary>Fetch one trip — the caller must be its rider or assigned driver.</summary>
+    /// <summary>Fetch one trip — the caller must be its customer or assigned driver.</summary>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(TripResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -67,7 +68,7 @@ public class TripActionsController : ControllerBase
 
     /// <summary>
     /// The assigned driver's last known position for this trip — the cold-start
-    /// seed for the rider's tracking map, before the realtime
+    /// seed for the customer's tracking map, before the realtime
     /// <c>driverLocation</c> pushes take over. 204 when there's nothing to show
     /// (no driver assigned yet, trip already over, or the driver isn't reporting).
     /// </summary>
@@ -84,7 +85,7 @@ public class TripActionsController : ControllerBase
         return position is null ? NoContent() : Ok(position);
     }
 
-    /// <summary>Cancel a trip. Callable by the trip's rider or its assigned driver.</summary>
+    /// <summary>Cancel a trip. Callable by the trip's customer or its assigned driver.</summary>
     [HttpPost("{id:guid}/cancel")]
     [ProducesResponseType(typeof(TripResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -99,7 +100,7 @@ public class TripActionsController : ControllerBase
 
     private (string UserType, Guid? UserId) CurrentUser()
     {
-        var userType = User.FindFirstValue("user_type") ?? User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+        var userType = UserTypes.Canonical(User.FindFirstValue("user_type") ?? User.FindFirstValue(ClaimTypes.Role));
         var idStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
         return (userType, Guid.TryParse(idStr, out var id) ? id : null);
     }

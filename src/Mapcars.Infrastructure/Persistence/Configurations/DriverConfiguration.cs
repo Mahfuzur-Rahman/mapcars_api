@@ -36,6 +36,9 @@ public class DriverConfiguration : IEntityTypeConfiguration<Driver>
 
         b.Property(d => d.CancellationCount).HasColumnName("cancellation_count");
         b.Property(d => d.NoShowCount).HasColumnName("no_show_count");
+        b.Property(d => d.AcceptsCashOverride).HasColumnName("accepts_cash_override");
+        b.Property(d => d.AcceptsCardOverride).HasColumnName("accepts_card_override");
+
         b.Property(d => d.IsOnline).HasColumnName("is_online");
         b.Property(d => d.LastOnlineAtUtc).HasColumnName("last_online_at_utc");
         b.Property(d => d.AverageRating).HasColumnName("average_rating").HasPrecision(3, 2);

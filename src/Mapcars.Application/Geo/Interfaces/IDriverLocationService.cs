@@ -16,7 +16,7 @@ public interface IDriverLocationService
     /// The assigned driver's last known position for a trip the caller is a party
     /// to. Returns null when no driver is assigned yet, or when the driver isn't
     /// in the live pool (offline / never pushed / Redis unavailable). Throws
-    /// <c>NotFoundException</c> if the caller isn't this trip's rider or driver.
+    /// <c>NotFoundException</c> if the caller isn't this trip's customer or driver.
     /// </summary>
     Task<TripDriverLocationResponse?> ForTripAsync(
         string callerType, Guid callerId, Guid tripId, CancellationToken ct = default);

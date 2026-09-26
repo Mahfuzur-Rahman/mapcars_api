@@ -4,8 +4,9 @@ using Mapcars.Application.Drivers.Interfaces;
 using Mapcars.Application.Ratings.Dtos;
 using Mapcars.Application.Ratings.Interfaces;
 using Mapcars.Application.Ratings.Mapping;
-using Mapcars.Application.Riders.Interfaces;
+using Mapcars.Application.Customers.Interfaces;
 using Mapcars.Application.Trips.Interfaces;
+using Mapcars.Domain.Constants;
 using Mapcars.Domain.Entities;
 using Mapcars.Domain.Enums;
 using Mapcars.Domain.Exceptions;
@@ -13,7 +14,7 @@ using Mapcars.Domain.Exceptions;
 namespace Mapcars.Application.Ratings.Services;
 
 /// <summary>
-/// Business logic for rider&lt;-&gt;driver ratings. A rating can only be left for a
+/// Business logic for customer&lt;-&gt;driver ratings. A rating can only be left for a
 /// completed trip, by one of its two participants, at most once per direction.
 /// Submitting a rating recomputes the rated party's aggregate average/count.
 /// </summary>
@@ -21,16 +22,16 @@ public class RatingService : IRatingService
 {
     private readonly IRatingRepository _ratings;
     private readonly ITripRepository _trips;
-    private readonly IRiderRepository _riders;
+    private readonly ICustomerRepository _customers;
     private readonly IDriverRepository _drivers;
     private readonly IUnitOfWork _uow;
 
     public RatingService(
-        IRatingRepository ratings, ITripRepository trips, IRiderRepository riders, IDriverRepository drivers, IUnitOfWork uow)
+        IRatingRepository ratings, ITripRepository trips, ICustomerRepository customers, IDriverRepository drivers, IUnitOfWork uow)
     {
         _ratings = ratings;
         _trips = trips;
-        _riders = riders;
+        _customers = customers;
         _drivers = drivers;
         _uow = uow;
     }
@@ -57,7 +58,7 @@ public class RatingService : IRatingService
         await _ratings.AddAsync(rating, ct);
 
         // The rater is rating the OTHER party on this trip.
-        if (callerType == "rider")
+        if (callerType == UserTypes.Customer)
         {
             if (trip.DriverId is { } driverId)
             {
@@ -67,8 +68,8 @@ public class RatingService : IRatingService
         }
         else
         {
-            var rider = await _riders.GetByIdAsync(trip.RiderId, ct);
-            if (rider is not null) ApplyRating(rider, request.Score);
+            var customer = await _customers.GetByIdAsync(trip.CustomerId, ct);
+            if (customer is not null) ApplyRating(customer, request.Score);
         }
 
         await _uow.SaveChangesAsync(ct);
@@ -89,7 +90,7 @@ public class RatingService : IRatingService
     {
         var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
 
-        var isParticipant = (callerType == "rider" && trip.RiderId == callerId)
+        var isParticipant = (callerType == UserTypes.Customer && trip.CustomerId == callerId)
             || (callerType == "driver" && trip.DriverId == callerId);
         if (!isParticipant)
             throw new NotFoundException("Trip", tripId);
@@ -97,10 +98,10 @@ public class RatingService : IRatingService
         return trip;
     }
 
-    private static void ApplyRating(Rider rider, int score)
+    private static void ApplyRating(Customer customer, int score)
     {
-        rider.AverageRating = NewAverage(rider.AverageRating, rider.RatingCount, score);
-        rider.RatingCount++;
+        customer.AverageRating = NewAverage(customer.AverageRating, customer.RatingCount, score);
+        customer.RatingCount++;
     }
 
     private static void ApplyRating(Driver driver, int score)

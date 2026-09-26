@@ -5,7 +5,7 @@ namespace Mapcars.Application.Admins.Interfaces;
 public interface IJwtService
 {
     string GenerateToken(Admin admin);
-    /// <summary>Generates a JWT for a rider or driver.</summary>
+    /// <summary>Generates a JWT for a customer or driver.</summary>
     string GenerateUserToken(Guid userId, string? identifier, string userType);
 
     /// <summary>Access-token lifetime. Short on purpose — a JWT cannot be revoked

@@ -4,7 +4,7 @@ namespace Mapcars.Application.Common.Validation;
 
 /// <summary>
 /// Reusable validation rules so every feature validates the same field the same
-/// way (phone, email, OTP code, password). Keeps rules consistent across riders,
+/// way (phone, email, OTP code, password). Keeps rules consistent across customers,
 /// drivers, and admins.
 /// </summary>
 public static class CommonRules

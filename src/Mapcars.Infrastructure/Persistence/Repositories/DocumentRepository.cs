@@ -8,9 +8,9 @@ public class DocumentRepository : GenericRepository<Document>, IDocumentReposito
 {
     public DocumentRepository(AppDbContext context) : base(context) { }
 
-    public async Task<IReadOnlyList<Document>> ListForRiderAsync(Guid riderId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Document>> ListForCustomerAsync(Guid customerId, CancellationToken ct = default)
         => await Set.AsNoTracking()
-            .Where(d => d.RiderId == riderId)
+            .Where(d => d.CustomerId == customerId)
             .OrderByDescending(d => d.CreatedAtUtc)
             .ToListAsync(ct);
 

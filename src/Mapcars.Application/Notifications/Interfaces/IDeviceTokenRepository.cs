@@ -11,7 +11,7 @@ public interface IDeviceTokenRepository
 
     Task RemoveTokensAsync(IReadOnlyCollection<string> tokens, CancellationToken ct = default);
 
-    /// <summary>The FCM tokens registered to one owner (rider/driver).</summary>
+    /// <summary>The FCM tokens registered to one owner (customer/driver).</summary>
     Task<IReadOnlyList<string>> ListTokensForUserAsync(
         string userType, Guid userId, CancellationToken ct = default);
 }

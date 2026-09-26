@@ -18,7 +18,7 @@ public class AdminReportingRepository(AppDbContext db) : IAdminReportingReposito
     {
         var today = DateTime.UtcNow.Date;
 
-        var totalRiders = await db.Riders.CountAsync(ct);
+        var totalCustomers = await db.Customers.CountAsync(ct);
         var totalDrivers = await db.Drivers.CountAsync(ct);
         var onlineDrivers = await db.Drivers.CountAsync(d => d.IsOnline, ct);
         var pending = await db.Drivers.CountAsync(d => d.Status == DriverStatus.PendingApproval, ct);
@@ -32,7 +32,7 @@ public class AdminReportingRepository(AppDbContext db) : IAdminReportingReposito
             .SumAsync(t => (decimal?)t.FareAmount, ct) ?? 0m;
 
         return new AdminStatsResponse(
-            totalRiders, totalDrivers, onlineDrivers, pending,
+            totalCustomers, totalDrivers, onlineDrivers, pending,
             activeTrips, tripsToday, completedToday, revenueToday);
     }
 
@@ -51,7 +51,7 @@ public class AdminReportingRepository(AppDbContext db) : IAdminReportingReposito
             .Select(t => new
             {
                 t.Id,
-                RiderName = t.Rider != null ? t.Rider.FullName : null,
+                CustomerName = t.Customer != null ? t.Customer.FullName : null,
                 DriverName = t.Driver != null ? t.Driver.FullName : null,
                 t.PickupAddress,
                 t.DropoffAddress,
@@ -68,7 +68,7 @@ public class AdminReportingRepository(AppDbContext db) : IAdminReportingReposito
             .ToListAsync(ct);
 
         return rows.Select(r => new AdminTripListItem(
-            r.Id, r.RiderName, r.DriverName, r.PickupAddress, r.DropoffAddress,
+            r.Id, r.CustomerName, r.DriverName, r.PickupAddress, r.DropoffAddress,
             r.Status.ToString(), r.Tier, r.FareAmount, r.TipAmount,
             r.PaymentMethod.ToString(), r.PaymentStatus.ToString(),
             r.CreatedAtUtc, r.CompletedAtUtc, r.CancelledAtUtc)).ToList();
@@ -83,7 +83,7 @@ public class AdminReportingRepository(AppDbContext db) : IAdminReportingReposito
             {
                 t.Id,
                 t.Status,
-                RiderName = t.Rider != null ? t.Rider.FullName : null,
+                CustomerName = t.Customer != null ? t.Customer.FullName : null,
                 DriverName = t.Driver != null ? t.Driver.FullName : null,
                 t.PickupAddress,
                 t.PickupLat,
@@ -95,7 +95,7 @@ public class AdminReportingRepository(AppDbContext db) : IAdminReportingReposito
             .ToListAsync(ct);
 
         return rows.Select(r => new AdminActiveTrip(
-            r.Id, r.Status.ToString(), r.RiderName, r.DriverName,
+            r.Id, r.Status.ToString(), r.CustomerName, r.DriverName,
             r.PickupAddress, r.PickupLat, r.PickupLng,
             r.DropoffAddress, r.DropoffLat, r.DropoffLng)).ToList();
     }

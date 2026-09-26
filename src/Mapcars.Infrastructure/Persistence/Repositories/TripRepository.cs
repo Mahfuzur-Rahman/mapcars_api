@@ -9,9 +9,9 @@ public class TripRepository : GenericRepository<Trip>, ITripRepository
 {
     public TripRepository(AppDbContext context) : base(context) { }
 
-    public async Task<IReadOnlyList<Trip>> ListForRiderAsync(Guid riderId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Trip>> ListForCustomerAsync(Guid customerId, CancellationToken ct = default)
         => await Set.AsNoTracking()
-            .Where(t => t.RiderId == riderId)
+            .Where(t => t.CustomerId == customerId)
             .OrderByDescending(t => t.CreatedAtUtc)
             .ToListAsync(ct);
 
@@ -60,7 +60,12 @@ public class TripRepository : GenericRepository<Trip>, ITripRepository
                 // Reuses the existing "when did this trip end" column rather
                 // than adding an ExpiredAtUtc that would mean the same thing.
                 // Status already says *how* it ended.
-                .SetProperty(t => t.CancelledAtUtc, nowUtc), ct);
+                .SetProperty(t => t.CancelledAtUtc, nowUtc)
+                // Nobody accepted it, so nothing is owed. Safe to set flatly here
+                // rather than conditionally: the WHERE above already restricts
+                // this to a Requested trip with no driver, which cannot have been
+                // settled.
+                .SetProperty(t => t.PaymentStatus, PaymentStatus.Voided), ct);
         return rows == 1;
     }
 
@@ -72,9 +77,9 @@ public class TripRepository : GenericRepository<Trip>, ITripRepository
                   t.Status == TripStatus.InProgress),
             ct);
 
-    public async Task<Trip?> GetActiveForRiderAsync(Guid riderId, CancellationToken ct = default)
+    public async Task<Trip?> GetActiveForCustomerAsync(Guid customerId, CancellationToken ct = default)
         => await Set.AsNoTracking()
-            .Where(t => t.RiderId == riderId &&
+            .Where(t => t.CustomerId == customerId &&
                         (t.Status == TripStatus.Requested ||
                          t.Status == TripStatus.DriverAssigned ||
                          t.Status == TripStatus.DriverArrived ||
@@ -110,6 +115,39 @@ public class TripRepository : GenericRepository<Trip>, ITripRepository
             .ExecuteUpdateAsync(s => s
                 .SetProperty(t => t.Status, TripStatus.DriverAssigned)
                 .SetProperty(t => t.DriverId, driverId), ct);
+        return rows == 1;
+    }
+
+    public async Task<bool> TryStartChargeAsync(
+        Guid tripId, DateTime nowUtc, TimeSpan staleAfter, CancellationToken ct = default)
+    {
+        // Same idiom as TryAssignAsync above: one conditional UPDATE decides it.
+        // This is the whole answer to the dual-write hazard - the attempt fired
+        // inline when the trip completed and the recovery sweeper both run this,
+        // and exactly one can win.
+        //
+        // The staleness clause is the crash-recovery release. A process that set
+        // the claim and then died leaves it standing; after `staleAfter` the
+        // sweeper may take it, and re-attempting is safe because the same
+        // idempotency key returns the intent the dead process created.
+        var cutoff = nowUtc - staleAfter;
+
+        var rows = await Set
+            .Where(t => t.Id == tripId
+                        && t.PaymentMethod == PaymentMethod.Card
+                        && t.Status == TripStatus.Completed
+                        // Failed and ActionRequired are claimable so a retry goes
+                        // through the same gate. Collected, Refunded and Voided
+                        // are terminal and must never be re-charged.
+                        && (t.PaymentStatus == PaymentStatus.Processing
+                         || t.PaymentStatus == PaymentStatus.Failed
+                         || t.PaymentStatus == PaymentStatus.ActionRequired)
+                        // An admin forgave this fare; do not chase it.
+                        && t.PaymentWaivedAtUtc == null
+                        && (t.ChargeStartedAtUtc == null || t.ChargeStartedAtUtc < cutoff))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(t => t.ChargeStartedAtUtc, nowUtc)
+                .SetProperty(t => t.PaymentStatus, PaymentStatus.Processing), ct);
         return rows == 1;
     }
 }

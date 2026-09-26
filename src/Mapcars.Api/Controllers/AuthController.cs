@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Mapcars.Api.Controllers;
 
 /// <summary>
-/// The web app's single sign-in endpoint — detects Admin/Rider/Driver from the
+/// The web app's single sign-in endpoint — detects Admin/Customer/Driver from the
 /// credentials — plus the session endpoints (<c>refresh</c>/<c>logout</c>) that
 /// every client shares, whichever door it signed in through.
 /// </summary>

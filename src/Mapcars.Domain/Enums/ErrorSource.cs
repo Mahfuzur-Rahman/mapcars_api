@@ -9,7 +9,7 @@ public enum ErrorSource
     /// <summary>The Next.js web app (browser or server component).</summary>
     Web = 1,
 
-    /// <summary>The Flutter rider app.</summary>
+    /// <summary>The Flutter customer app.</summary>
     CustomerApp = 2,
 
     /// <summary>The Flutter driver app.</summary>

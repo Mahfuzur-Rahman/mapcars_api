@@ -5,20 +5,21 @@ using Mapcars.Application.Auth.Interfaces;
 using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Application.Drivers.Interfaces;
-using Mapcars.Application.Riders.Interfaces;
+using Mapcars.Application.Customers.Interfaces;
+using Mapcars.Domain.Constants;
 using Mapcars.Domain.Entities;
 using Mapcars.Domain.Exceptions;
 
 namespace Mapcars.Application.Auth.Services;
 
-// Single front door for the web app's one sign-in page. Admin, Rider, and
+// Single front door for the web app's one sign-in page. Admin, Customer, and
 // Driver accounts are still owned by their own feature slices (and the API
-// still exposes their dedicated /admin/auth, /auth/riders, /auth/drivers
+// still exposes their dedicated /admin/auth, /auth/customers, /auth/drivers
 // endpoints for mobile) — this just tries the email against each table and
 // signs in whichever one the password actually matches.
 public class UnifiedAuthService(
     IAdminRepository adminRepo,
-    IRiderRepository riderRepo,
+    ICustomerRepository customerRepo,
     IDriverRepository driverRepo,
     IPasswordHasher hasher,
     IJwtService jwt,
@@ -35,28 +36,34 @@ public class UnifiedAuthService(
         if (admin is not null && hasher.Verify(password, admin.PasswordHash))
             return await BuildAdminResponseAsync(admin, await adminRepo.GetMenusForAdminAsync(admin.Id, admin.RoleId, ct), ct);
 
-        var rider = await riderRepo.FindByEmailAsync(email, ct);
-        var riderMatches = rider is not null && rider.PasswordHash is not null && hasher.Verify(password, rider.PasswordHash);
+        var customer = await customerRepo.FindByEmailAsync(email, ct);
+        var customerMatches = customer is not null && customer.PasswordHash is not null && hasher.Verify(password, customer.PasswordHash);
 
         var driver = await driverRepo.FindByEmailAsync(email, ct);
         var driverMatches = driver is not null && driver.PasswordHash is not null && hasher.Verify(password, driver.PasswordHash);
 
-        // The same person can hold a rider account and a driver account under
+        // The same person can hold a customer account and a driver account under
         // the same email. If both match, don't silently pick one (that used
-        // to always mean "rider", since it was checked first) — ask which
+        // to always mean "customer", since it was checked first) — ask which
         // account they mean, unless they already told us via LoginAs.
-        if (riderMatches && driverMatches)
+        if (customerMatches && driverMatches)
         {
-            return request.LoginAs switch
+            // LoginAs is accepted under EITHER passenger spelling: a client build
+            // that predates the rename still sends the old word, and rejecting it
+            // would lock those users out of the unified sign-in entirely.
+            if (UserTypes.IsCustomer(request.LoginAs))
+                return await BuildUserResponseAsync(customer!, UserTypes.Customer, ct);
+            if (UserTypes.IsDriver(request.LoginAs))
+                return await BuildUserResponseAsync(driver!, UserTypes.Driver, ct);
+            return new UnifiedLoginResponse
             {
-                "rider" => await BuildUserResponseAsync(rider!, "rider", ct),
-                "driver" => await BuildUserResponseAsync(driver!, "driver", ct),
-                _ => new UnifiedLoginResponse { RequiresChoice = true, AvailableUserTypes = ["rider", "driver"] },
+                RequiresChoice = true,
+                AvailableUserTypes = [UserTypes.Customer, UserTypes.Driver],
             };
         }
 
-        if (riderMatches) return await BuildUserResponseAsync(rider!, "rider", ct);
-        if (driverMatches) return await BuildUserResponseAsync(driver!, "driver", ct);
+        if (customerMatches) return await BuildUserResponseAsync(customer!, UserTypes.Customer, ct);
+        if (driverMatches) return await BuildUserResponseAsync(driver!, UserTypes.Driver, ct);
 
         // Deliberately generic — never reveal which table(s) the email exists
         // in, and never reveal *whose* password was wrong if it happens to
@@ -76,15 +83,15 @@ public class UnifiedAuthService(
             ? info.Email.ToLowerInvariant().Trim()
             : null;
 
-        // 1. Look up rider by google_sub or verified email
-        var rider = await riderRepo.FindByGoogleSubAsync(info.Sub, ct);
-        if (rider is null && email is not null)
+        // 1. Look up customer by google_sub or verified email
+        var customer = await customerRepo.FindByGoogleSubAsync(info.Sub, ct);
+        if (customer is null && email is not null)
         {
-            rider = await riderRepo.FindByEmailAsync(email, ct);
-            if (rider is not null)
+            customer = await customerRepo.FindByEmailAsync(email, ct);
+            if (customer is not null)
             {
-                rider.GoogleSub = info.Sub;
-                riderRepo.Update(rider);
+                customer.GoogleSub = info.Sub;
+                customerRepo.Update(customer);
                 await uow.SaveChangesAsync(ct);
             }
         }
@@ -103,32 +110,38 @@ public class UnifiedAuthService(
         }
 
         // 3. If both accounts exist, handle role choice
-        if (rider is not null && driver is not null)
+        if (customer is not null && driver is not null)
         {
-            return request.LoginAs switch
+            // LoginAs is accepted under EITHER passenger spelling: a client build
+            // that predates the rename still sends the old word, and rejecting it
+            // would lock those users out of the unified sign-in entirely.
+            if (UserTypes.IsCustomer(request.LoginAs))
+                return await BuildUserResponseAsync(customer, UserTypes.Customer, ct);
+            if (UserTypes.IsDriver(request.LoginAs))
+                return await BuildUserResponseAsync(driver, UserTypes.Driver, ct);
+            return new UnifiedLoginResponse
             {
-                "rider" => await BuildUserResponseAsync(rider, "rider", ct),
-                "driver" => await BuildUserResponseAsync(driver, "driver", ct),
-                _ => new UnifiedLoginResponse { RequiresChoice = true, AvailableUserTypes = ["rider", "driver"] },
+                RequiresChoice = true,
+                AvailableUserTypes = [UserTypes.Customer, UserTypes.Driver],
             };
         }
 
         if (driver is not null)
         {
-            if (request.LoginAs == "rider")
+            if (UserTypes.IsCustomer(request.LoginAs))
             {
                 throw new UnauthorizedException("This Google account is registered as a Driver. Please sign in as a driver.");
             }
-            return await BuildUserResponseAsync(driver, "driver", ct);
+            return await BuildUserResponseAsync(driver, UserTypes.Driver, ct);
         }
 
-        if (rider is not null)
+        if (customer is not null)
         {
-            if (request.LoginAs == "driver")
+            if (UserTypes.IsDriver(request.LoginAs))
             {
                 throw new UnauthorizedException("This Google account is registered as a Customer. Please sign in as a customer, or register a driver account.");
             }
-            return await BuildUserResponseAsync(rider, "rider", ct);
+            return await BuildUserResponseAsync(customer, UserTypes.Customer, ct);
         }
 
         // 4. Neither exists
@@ -138,7 +151,7 @@ public class UnifiedAuthService(
                 "We couldn't find a Mapcars account for that Google account. Please sign up first.");
         }
 
-        if (request.LoginAs == "driver")
+        if (UserTypes.IsDriver(request.LoginAs))
         {
             var newDriver = new Driver
             {
@@ -154,16 +167,16 @@ public class UnifiedAuthService(
         }
         else
         {
-            var newRider = new Rider
+            var newCustomer = new Customer
             {
                 GoogleSub = info.Sub,
                 Email = email,
                 FullName = info.Name,
                 IsEmailVerified = email is not null,
             };
-            await riderRepo.AddAsync(newRider, ct);
+            await customerRepo.AddAsync(newCustomer, ct);
             await uow.SaveChangesAsync(ct);
-            return await BuildUserResponseAsync(newRider, "rider", ct);
+            return await BuildUserResponseAsync(newCustomer, UserTypes.Customer, ct);
         }
     }
 
@@ -183,26 +196,26 @@ public class UnifiedAuthService(
         };
     }
 
-    private async Task<UnifiedLoginResponse> BuildUserResponseAsync(Rider rider, string userType, CancellationToken ct)
+    private async Task<UnifiedLoginResponse> BuildUserResponseAsync(Customer customer, string userType, CancellationToken ct)
     {
-        if (!rider.IsEmailVerified)
+        if (!customer.IsEmailVerified)
             throw new UnauthorizedException("Please verify your email before logging in.");
-        if (!rider.IsActive)
+        if (!customer.IsActive)
             throw new UnauthorizedException("Your account has been disabled.");
 
         return new UnifiedLoginResponse
         {
-            Token = jwt.GenerateUserToken(rider.Id, rider.Email ?? rider.PhoneNumber, userType),
+            Token = jwt.GenerateUserToken(customer.Id, customer.Email ?? customer.PhoneNumber, userType),
             ExpiresInMinutes = jwt.ExpiryMinutes,
-            RefreshToken = await refreshTokens.IssueAsync(rider.Id, userType, ct: ct),
+            RefreshToken = await refreshTokens.IssueAsync(customer.Id, userType, ct: ct),
             UserType = userType,
-            UserId = rider.Id,
-            FullName = rider.FullName,
-            Email = rider.Email,
-            Phone = rider.PhoneNumber,
-            IsProfileComplete = rider.IsProfileComplete,
-            IsEmailVerified = rider.IsEmailVerified,
-            IsPhoneVerified = rider.IsPhoneVerified,
+            UserId = customer.Id,
+            FullName = customer.FullName,
+            Email = customer.Email,
+            Phone = customer.PhoneNumber,
+            IsProfileComplete = customer.IsProfileComplete,
+            IsEmailVerified = customer.IsEmailVerified,
+            IsPhoneVerified = customer.IsPhoneVerified,
         };
     }
 

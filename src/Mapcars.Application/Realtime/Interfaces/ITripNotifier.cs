@@ -37,13 +37,13 @@ public interface ITripNotifier
 
     /// <summary>
     /// Tell everyone tracking this trip that its search window has closed and
-    /// the rider is being asked whether to keep looking (a <c>tripExpiring</c>
+    /// the customer is being asked whether to keep looking (a <c>tripExpiring</c>
     /// event). The trip is still <c>Requested</c>, so no <c>tripUpdated</c>
     /// would otherwise fire.
     ///
-    /// This is a backstop, not the trigger: a foregrounded rider app raises the
+    /// This is a backstop, not the trigger: a foregrounded customer app raises the
     /// prompt from its own countdown, so the prompt still appears on time when
-    /// the realtime connection is dead — which is precisely when a rider would
+    /// the realtime connection is dead — which is precisely when a customer would
     /// otherwise lose the ride without being asked.
     /// </summary>
     Task TripExpiringAsync(TripResponse trip, CancellationToken ct = default);

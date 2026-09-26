@@ -3,12 +3,12 @@ using Mapcars.Domain.Common;
 namespace Mapcars.Domain.Entities;
 
 /// <summary>
-/// A rider's saved address (Home, Work, or a custom label). Many per rider.
+/// A customer's saved address (Home, Work, or a custom label). Many per customer.
 /// </summary>
 public class SavedPlace : BaseEntity
 {
-    public Guid RiderId { get; set; }
-    public Rider? Rider { get; set; }
+    public Guid CustomerId { get; set; }
+    public Customer? Customer { get; set; }
 
     public required string Label { get; set; }
     public required string Address { get; set; }

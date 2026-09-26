@@ -1,13 +1,14 @@
 using System.Security.Claims;
 using Mapcars.Application.Messages.Dtos;
 using Mapcars.Application.Messages.Interfaces;
+using Mapcars.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Mapcars.Api.Controllers;
 
 /// <summary>
-/// In-trip chat messages. Either participant (rider or driver) may send
+/// In-trip chat messages. Either participant (customer or driver) may send
 /// messages and list the full conversation history for their trip.
 /// </summary>
 [ApiController]
@@ -45,7 +46,7 @@ public class MessagesController : ControllerBase
 
     private (string UserType, Guid? UserId) CurrentUser()
     {
-        var userType = User.FindFirstValue("user_type") ?? string.Empty;
+        var userType = UserTypes.Canonical(User.FindFirstValue("user_type"));
         var idStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return (userType, Guid.TryParse(idStr, out var id) ? id : null);
     }

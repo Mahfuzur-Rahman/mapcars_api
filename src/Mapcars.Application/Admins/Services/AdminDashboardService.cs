@@ -27,6 +27,15 @@ public class AdminDashboardService(
     public Task<IReadOnlyList<AdminTripListItem>> ListTripsAsync(
         string? status, int skip, int take, CancellationToken ct = default)
     {
+        // The admin portal sends whatever spelling its build knows. A client
+        // older than the rename sends "CancelledByRider", which no longer parses
+        // - and an unparsed filter falls through to null, which does not show
+        // NOTHING, it shows EVERY trip. Silently wrong in the least obvious
+        // direction, so translate before parsing. Remove once the portal has
+        // shipped the renamed value.
+        if (string.Equals(status, "CancelledByRider", StringComparison.OrdinalIgnoreCase))
+            status = nameof(TripStatus.CancelledByCustomer);
+
         TripStatus? parsed = null;
         if (!string.IsNullOrWhiteSpace(status) &&
             Enum.TryParse<TripStatus>(status, ignoreCase: true, out var s))

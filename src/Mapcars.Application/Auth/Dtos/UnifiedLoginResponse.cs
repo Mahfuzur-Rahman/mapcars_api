@@ -11,7 +11,7 @@ public class UnifiedLoginResponse
 {
     /// <summary>
     /// True when the email+password matched more than one account (e.g. the
-    /// same person has both a rider and a driver account under this email).
+    /// same person has both a customer and a driver account under this email).
     /// Every other field is unset — the caller must ask the user which
     /// account they mean, then resend the login with <c>LoginAs</c> set to
     /// one of <see cref="AvailableUserTypes"/>.
@@ -26,9 +26,9 @@ public class UnifiedLoginResponse
     /// when <see cref="RequiresChoice"/> is set — no session exists yet.</summary>
     public string RefreshToken { get; set; } = string.Empty;
 
-    public string UserType { get; set; } = string.Empty; // "admin" | "rider" | "driver"
+    public string UserType { get; set; } = string.Empty; // "admin" | "customer" | "driver"
 
-    // Rider / driver
+    // Customer / driver
     public Guid? UserId { get; set; }
     public string? FullName { get; set; }
     public string? Email { get; set; }

@@ -26,7 +26,7 @@ public class ErrorLog : BaseEntity
     public string? HttpMethod { get; set; }
     public int? StatusCode { get; set; }
 
-    /// <summary>"rider" | "driver" | "admin", when the caller was authenticated.</summary>
+    /// <summary>"customer" | "driver" | "admin", when the caller was authenticated.</summary>
     public string? UserType { get; set; }
     public Guid? UserId { get; set; }
 

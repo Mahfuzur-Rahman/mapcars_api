@@ -5,7 +5,7 @@ namespace Mapcars.Application.Trips.Interfaces;
 
 public interface ITripRepository : IGenericRepository<Trip>
 {
-    Task<IReadOnlyList<Trip>> ListForRiderAsync(Guid riderId, CancellationToken ct = default);
+    Task<IReadOnlyList<Trip>> ListForCustomerAsync(Guid customerId, CancellationToken ct = default);
     Task<IReadOnlyList<Trip>> ListForDriverAsync(Guid driverId, CancellationToken ct = default);
 
     /// <summary>
@@ -36,8 +36,8 @@ public interface ITripRepository : IGenericRepository<Trip>
     /// <summary>True if the driver is on a live trip (assigned / arrived / in-progress) — i.e. not free to dispatch.</summary>
     Task<bool> HasActiveTripAsync(Guid driverId, CancellationToken ct = default);
 
-    /// <summary>Fetch the single active trip for a rider, or null if none.</summary>
-    Task<Trip?> GetActiveForRiderAsync(Guid riderId, CancellationToken ct = default);
+    /// <summary>Fetch the single active trip for a customer, or null if none.</summary>
+    Task<Trip?> GetActiveForCustomerAsync(Guid customerId, CancellationToken ct = default);
 
     /// <summary>Fetch the single active trip for a driver, or null if none.</summary>
     Task<Trip?> GetActiveForDriverAsync(Guid driverId, CancellationToken ct = default);
@@ -48,4 +48,19 @@ public interface ITripRepository : IGenericRepository<Trip>
     /// single guard against two drivers grabbing the same trip.
     /// </summary>
     Task<bool> TryAssignAsync(Guid tripId, Guid driverId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Claim the exclusive right to charge this trip. Returns false if someone
+    /// else holds the claim — the loser walks away rather than charging too.
+    ///
+    /// <para>
+    /// <paramref name="staleAfter"/> is the crash-recovery release: a process
+    /// that took the claim and then died leaves it behind, and after this long
+    /// the sweeper may take it. Re-attempting is safe because it reuses the same
+    /// idempotency key, so the provider returns the intent the dead process
+    /// created rather than making a second one.
+    /// </para>
+    /// </summary>
+    Task<bool> TryStartChargeAsync(
+        Guid tripId, DateTime nowUtc, TimeSpan staleAfter, CancellationToken ct = default);
 }

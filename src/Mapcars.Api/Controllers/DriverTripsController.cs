@@ -3,6 +3,7 @@ using Mapcars.Application.Trips.Dtos;
 using Mapcars.Application.Trips.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace Mapcars.Api.Controllers;
 
@@ -80,10 +81,16 @@ public class DriverTripsController : ControllerBase
     [HttpPost("{id:guid}/start")]
     [ProducesResponseType(typeof(TripResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Start(Guid id, CancellationToken ct)
+    public async Task<IActionResult> Start(
+        Guid id,
+        // EmptyBodyBehavior.Allow on purpose: a driver build older than the
+        // server-side PIN check posts no body at all, and the default behaviour
+        // would 400 it — stranding trips mid-shift on the deploy.
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] StartTripRequest? request,
+        CancellationToken ct)
     {
         if (!TryGetDriverId(out var driverId)) return Unauthorized();
-        return Ok(await _trips.StartAsync(driverId, id, ct));
+        return Ok(await _trips.StartAsync(driverId, id, request?.Pin, ct));
     }
 
     [HttpPost("{id:guid}/complete")]

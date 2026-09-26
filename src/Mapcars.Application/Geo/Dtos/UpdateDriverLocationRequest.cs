@@ -8,7 +8,7 @@ namespace Mapcars.Application.Geo.Dtos;
 /// <param name="TripId">
 /// The driver's active trip, if any — when present (and it really is this
 /// driver's own assigned/in-progress trip), the position is also relayed to
-/// that trip's SignalR group (a <c>driverLocation</c> event) so the rider can
+/// that trip's SignalR group (a <c>driverLocation</c> event) so the customer can
 /// watch the car move live.
 /// </param>
 /// <param name="Heading">Compass heading in degrees (0 = north, clockwise),

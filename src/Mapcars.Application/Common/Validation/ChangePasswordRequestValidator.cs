@@ -3,7 +3,7 @@ using Mapcars.Application.Common.Dtos;
 
 namespace Mapcars.Application.Common.Validation;
 
-/// <summary>Shared across admin, rider, and driver — see <see cref="ChangePasswordRequest"/>.</summary>
+/// <summary>Shared across admin, customer, and driver — see <see cref="ChangePasswordRequest"/>.</summary>
 public class ChangePasswordRequestValidator : AbstractValidator<ChangePasswordRequest>
 {
     public ChangePasswordRequestValidator()

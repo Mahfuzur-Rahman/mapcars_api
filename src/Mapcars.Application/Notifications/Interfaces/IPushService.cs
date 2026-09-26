@@ -4,7 +4,7 @@ namespace Mapcars.Application.Notifications.Interfaces;
 
 /// <summary>
 /// High-level push notifications: register/unregister a device, and notify a
-/// rider/driver by looking up their tokens and sending (pruning dead ones).
+/// customer/driver by looking up their tokens and sending (pruning dead ones).
 /// All sends are best-effort — a push failure never breaks the caller.
 /// </summary>
 public interface IPushService
