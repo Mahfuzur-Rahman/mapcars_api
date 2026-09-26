@@ -65,7 +65,7 @@ public class DispatchService : IDispatchService
         // trip's payment method does not change per candidate either.
         var payments = await _settings.GetAsync<PaymentSettings>(SettingKeys.Payments, ct);
 
-        var response = trip.ToResponse();
+        var response = trip.ToResponse(forDriver: true); // goes to drivers' boards
         foreach (var candidate in nearby)
         {
             var driver = await _drivers.GetByIdAsync(candidate.DriverId, ct);

@@ -11,8 +11,13 @@ namespace Mapcars.Application.Realtime.Interfaces;
 /// </summary>
 public interface ITripNotifier
 {
-    /// <summary>Broadcast the updated trip to everyone tracking it (its per-trip group).</summary>
-    Task TripUpdatedAsync(TripResponse trip, CancellationToken ct = default);
+    /// <summary>
+    /// Broadcast the updated trip to everyone tracking it. Two views, because the
+    /// parties are not entitled to the same facts: the customer sees their real
+    /// card state, the driver sees <see cref="Trips.Mapping.DriverPaymentView"/>'s
+    /// version of it. Each goes only to that party's per-trip group.
+    /// </summary>
+    Task TripUpdatedAsync(TripResponse forCustomer, TripResponse forDriver, CancellationToken ct = default);
 
     /// <summary>Tell a nearby driver about a new open request (broadcast model) —
     /// pushed to their personal group so it appears live on their requests board.</summary>

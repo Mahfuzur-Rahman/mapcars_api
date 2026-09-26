@@ -22,11 +22,16 @@ public static class TripMappings
     /// precisely what the PIN exists to prevent. Only the trip's customer and its
     /// assigned driver get it.
     /// </param>
+    /// <param name="forDriver">
+    /// Map the payment fields through <see cref="DriverPaymentView"/>. Must be set
+    /// on every response a driver receives — the customer's card state is theirs.
+    /// </param>
     public static TripResponse ToResponse(
         this Trip trip,
         TripDriverInfo? driver = null,
         TripCustomerInfo? customer = null,
-        bool includePin = false) => new(
+        bool includePin = false,
+        bool forDriver = false) => new(
         trip.Id,
         trip.PickupAddress,
         trip.PickupLat,
@@ -45,8 +50,8 @@ public static class TripMappings
         trip.DriverEarnings,
         trip.FareChartVersion,
         trip.PaymentMethod.ToString(),
-        trip.PaymentStatus.ToString(),
-        trip.PaidAtUtc,
+        (forDriver ? DriverPaymentView.StatusFor(trip.PaymentStatus) : trip.PaymentStatus).ToString(),
+        forDriver ? DriverPaymentView.PaidAtFor(trip) : trip.PaidAtUtc,
         trip.CreatedAtUtc,
         trip.CompletedAtUtc,
         trip.CancelledAtUtc,

@@ -11,7 +11,8 @@ namespace Mapcars.Application.Realtime;
 /// </summary>
 public sealed class NullTripNotifier : ITripNotifier
 {
-    public Task TripUpdatedAsync(TripResponse trip, CancellationToken ct = default) => Task.CompletedTask;
+    public Task TripUpdatedAsync(TripResponse forCustomer, TripResponse forDriver, CancellationToken ct = default)
+        => Task.CompletedTask;
 
     public Task TripAvailableAsync(Guid driverId, TripResponse trip, CancellationToken ct = default)
         => Task.CompletedTask;

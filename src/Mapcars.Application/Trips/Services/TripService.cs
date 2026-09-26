@@ -78,7 +78,7 @@ public class TripService : ITripService
     public async Task<IReadOnlyList<TripResponse>> ListForDriverAsync(Guid driverId, CancellationToken ct = default)
     {
         var trips = await _trips.ListForDriverAsync(driverId, ct);
-        return trips.Select(t => t.ToResponse()).ToList();
+        return trips.Select(t => t.ToResponse(forDriver: true)).ToList();
     }
 
     public async Task<IReadOnlyList<TripResponse>> ListAvailableAsync(Guid driverId, CancellationToken ct = default)
@@ -89,7 +89,7 @@ public class TripService : ITripService
         var trips = await _trips.ListAvailableAsync(ct);
         return trips
             .Where(t => vehicle is null || DispatchService.IsTierCompatible(vehicle.Tier, t.Tier))
-            .Select(t => t.ToResponse())
+            .Select(t => t.ToResponse(forDriver: true))
             .ToList();
     }
 
@@ -119,7 +119,7 @@ public class TripService : ITripService
             // An explicit query radius is only ever a *narrower* view on top.
             .Where(x => radiusMeters is null || x.meters <= radiusMeters)
             .OrderBy(x => x.meters)
-            .Select(x => x.trip.ToResponse())
+            .Select(x => x.trip.ToResponse(forDriver: true))
             .ToList();
     }
 
@@ -264,7 +264,7 @@ public class TripService : ITripService
         try { await _dispatch.BroadcastAsync(trip, DispatchRadius.MaxMeters, ct); }
         catch { /* realtime broadcast is non-critical to the extension */ }
 
-        return await NotifiedAsync(trip, ct);
+        return await NotifiedAsync(trip, callerIsDriver: false, ct);
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -287,7 +287,7 @@ public class TripService : ITripService
         try { await _dispatch.WithdrawAsync(trip, ct: ct); }
         catch { /* non-critical */ }
 
-        return await NotifiedAsync(trip, ct);
+        return await NotifiedAsync(trip, callerIsDriver: true, ct);
     }
 
     public async Task<TripResponse> ArriveAsync(Guid driverId, Guid tripId, CancellationToken ct = default)
@@ -374,7 +374,7 @@ public class TripService : ITripService
         }
 
         await _uow.SaveChangesAsync(ct);
-        return await NotifiedAsync(trip, ct);
+        return await NotifiedAsync(trip, callerIsDriver: true, ct);
     }
 
     /// <summary>Maps the request's payment-method string to the enum (defaults to cash).</summary>
@@ -439,7 +439,7 @@ public class TripService : ITripService
             catch { /* non-critical */ }
         }
 
-        return await NotifiedAsync(trip, ct);
+        return await NotifiedAsync(trip, callerIsDriver: isDriver, ct);
     }
 
     public async Task<TripResponse> GetForUserAsync(
@@ -453,7 +453,7 @@ public class TripService : ITripService
 
         var driver = await BuildDriverInfoAsync(trip.DriverId, ct);
         var customer = await BuildCustomerInfoAsync(trip.CustomerId, ct);
-        return trip.ToResponse(driver, customer, includePin: true);
+        return trip.ToResponse(driver, customer, includePin: true, forDriver: isDriver);
     }
 
     public async Task<TripResponse?> GetActiveForUserAsync(
@@ -467,7 +467,7 @@ public class TripService : ITripService
 
         var driver = await BuildDriverInfoAsync(trip.DriverId, ct);
         var customer = await BuildCustomerInfoAsync(trip.CustomerId, ct);
-        return trip.ToResponse(driver, customer, includePin: true);
+        return trip.ToResponse(driver, customer, includePin: true, forDriver: UserTypes.IsDriver(callerType));
     }
 
     public async Task<TripReceiptResponse> GetReceiptForUserAsync(
@@ -503,10 +503,12 @@ public class TripService : ITripService
             trip.TipAmount,
             totalAmount,
             trip.PaymentMethod.ToString(),
-            trip.PaymentStatus.ToString(),
+            // A driver's copy of the receipt must not reveal the customer's card
+            // state either; the admin and the customer see the real one.
+            (isDriver && !isCustomer ? DriverPaymentView.StatusFor(trip.PaymentStatus) : trip.PaymentStatus).ToString(),
             trip.CreatedAtUtc,
             trip.CompletedAtUtc,
-            trip.PaidAtUtc,
+            isDriver && !isCustomer ? DriverPaymentView.PaidAtFor(trip) : trip.PaidAtUtc,
             driver,
             customer
         );
@@ -558,25 +560,29 @@ public class TripService : ITripService
 
         trip.Status = to;
         await _uow.SaveChangesAsync(ct);
-        return await NotifiedAsync(trip, ct);
+        return await NotifiedAsync(trip, callerIsDriver: true, ct);
     }
 
-    /// <summary>Map a trip to its response and push it to the trip's realtime group.</summary>
-    private async Task<TripResponse> NotifiedAsync(Trip trip, CancellationToken ct)
+    /// <summary>
+    /// Map a trip to both parties' views, push each to that party's realtime
+    /// group, and return the view belonging to whoever made this call.
+    /// </summary>
+    private async Task<TripResponse> NotifiedAsync(Trip trip, bool callerIsDriver, CancellationToken ct)
     {
         var driver = await BuildDriverInfoAsync(trip.DriverId, ct);
         var customer = await BuildCustomerInfoAsync(trip.CustomerId, ct);
 
-        // The trip group only ever contains this trip's customer and its assigned
+        // The trip groups only ever contain this trip's customer and its assigned
         // driver (TripHub.JoinTrip enforces that), so both parties' details and
-        // the PIN are safe to carry on this response.
-        var response = trip.ToResponse(driver, customer, includePin: true);
-        await _notifier.TripUpdatedAsync(response, ct);
+        // the PIN are safe to carry. The payment fields are not — hence two views.
+        var forCustomer = trip.ToResponse(driver, customer, includePin: true);
+        var forDriver = trip.ToResponse(driver, customer, includePin: true, forDriver: true);
+        await _notifier.TripUpdatedAsync(forCustomer, forDriver, ct);
 
         // Fire a push to the relevant party for lifecycle transitions that matter
         // when the app is backgrounded. Best-effort (PushService swallows errors).
         await PushForStatusAsync(trip, ct);
-        return response;
+        return callerIsDriver ? forDriver : forCustomer;
     }
 
     /// <summary>

@@ -58,14 +58,30 @@ public class TripHub : Hub
             return; // not this trip's customer or driver
         }
 
+        // Two groups: the shared one for events both parties see identically
+        // (location, chat, tripExpiring), and a per-party one for tripUpdated,
+        // whose payment fields differ by audience. The server picks the party
+        // from the token, so a client can't ask to be put in the other one.
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupFor(tripId));
+        await Groups.AddToGroupAsync(Context.ConnectionId,
+            UserTypes.IsDriver(userType) ? DriverTripGroupFor(tripId) : CustomerGroupFor(tripId));
     }
 
-    public Task LeaveTrip(string tripId) =>
-        Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupFor(tripId));
+    public async Task LeaveTrip(string tripId)
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupFor(tripId));
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, CustomerGroupFor(tripId));
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, DriverTripGroupFor(tripId));
+    }
 
-    /// <summary>The SignalR group name for a trip. Shared with the notifier.</summary>
+    /// <summary>The shared SignalR group for a trip — both parties. Shared with the notifier.</summary>
     public static string GroupFor(string tripId) => $"trip:{tripId}";
+
+    /// <summary>The trip's customer only.</summary>
+    public static string CustomerGroupFor(string tripId) => $"trip:{tripId}:customer";
+
+    /// <summary>The trip's assigned driver only.</summary>
+    public static string DriverTripGroupFor(string tripId) => $"trip:{tripId}:driver";
 
     /// <summary>A driver's personal group (for offers targeted at them).</summary>
     public static string DriverGroupFor(string driverId) => $"driver:{driverId}";

@@ -23,17 +23,20 @@ public sealed class SignalRTripNotifier : ITripNotifier
         _log = log;
     }
 
-    public async Task TripUpdatedAsync(TripResponse trip, CancellationToken ct = default)
+    public async Task TripUpdatedAsync(TripResponse forCustomer, TripResponse forDriver, CancellationToken ct = default)
     {
+        var tripId = forCustomer.Id.ToString();
         try
         {
-            await _hub.Clients
-                .Group(TripHub.GroupFor(trip.Id.ToString()))
-                .SendAsync("tripUpdated", trip, ct);
+            // Never the shared group: that would hand the driver the customer's
+            // card state. Same event name for both, so no client changes.
+            await Task.WhenAll(
+                _hub.Clients.Group(TripHub.CustomerGroupFor(tripId)).SendAsync("tripUpdated", forCustomer, ct),
+                _hub.Clients.Group(TripHub.DriverTripGroupFor(tripId)).SendAsync("tripUpdated", forDriver, ct));
         }
         catch (Exception ex)
         {
-            _log.LogWarning(ex, "Failed to push tripUpdated for trip {TripId}.", trip.Id);
+            _log.LogWarning(ex, "Failed to push tripUpdated for trip {TripId}.", forCustomer.Id);
         }
     }
 

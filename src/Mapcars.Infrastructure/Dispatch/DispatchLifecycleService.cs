@@ -243,7 +243,7 @@ public sealed class DispatchLifecycleService : BackgroundService
             "withdraw expired trip {TripId} from driver boards", trip.Id);
 
         await SafelyAsync(
-            () => notifier.TripUpdatedAsync(trip.ToResponse(), ct),
+            () => notifier.TripUpdatedAsync(trip.ToResponse(), trip.ToResponse(forDriver: true), ct),
             "push tripUpdated for expired trip {TripId}", trip.Id);
 
         await SafelyAsync(
