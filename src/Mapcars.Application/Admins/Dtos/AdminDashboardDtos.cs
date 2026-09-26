@@ -1,6 +1,15 @@
 namespace Mapcars.Application.Admins.Dtos;
 
 /// <summary>Headline counts for the admin dashboard. "Today" is UTC-day based.</summary>
+/// <param name="RevenueTodayGbp">
+/// The platform's own money: the commission on today's completed trips. Until
+/// 2026-09 this summed the whole fare, most of which belongs to drivers — it
+/// overstated revenue roughly sevenfold at a 15% commission.
+/// </param>
+/// <param name="GrossFaresTodayGbp">
+/// Everything customers were charged for today's completed trips (excluding
+/// tips), i.e. gross bookings. Revenue is a slice of this, not a synonym.
+/// </param>
 public record AdminStatsResponse(
     int TotalCustomers,
     int TotalDrivers,
@@ -9,7 +18,8 @@ public record AdminStatsResponse(
     int ActiveTrips,
     int TripsToday,
     int CompletedTripsToday,
-    decimal RevenueTodayGbp)
+    decimal RevenueTodayGbp,
+    decimal GrossFaresTodayGbp)
 {
     /// <summary>DEPRECATED alias for <c>TotalCustomers</c>, kept for one release so a client
     /// build that predates the rename keeps working. Delete once web and both apps

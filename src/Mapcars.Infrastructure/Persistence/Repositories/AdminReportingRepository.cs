@@ -27,13 +27,16 @@ public class AdminReportingRepository(AppDbContext db) : IAdminReportingReposito
         var tripsToday = await db.Trips.CountAsync(t => t.CreatedAtUtc >= today, ct);
         var completedToday = await db.Trips.CountAsync(
             t => t.Status == TripStatus.Completed && t.CompletedAtUtc >= today, ct);
-        var revenueToday = await db.Trips
-            .Where(t => t.Status == TripStatus.Completed && t.CompletedAtUtc >= today)
-            .SumAsync(t => (decimal?)t.FareAmount, ct) ?? 0m;
+        var completed = db.Trips
+            .Where(t => t.Status == TripStatus.Completed && t.CompletedAtUtc >= today);
+
+        // Revenue is the commission, not the fare — the driver's share was never ours.
+        var revenueToday = await completed.SumAsync(t => (decimal?)t.PlatformFeeAmount, ct) ?? 0m;
+        var grossFaresToday = await completed.SumAsync(t => (decimal?)t.FareAmount, ct) ?? 0m;
 
         return new AdminStatsResponse(
             totalCustomers, totalDrivers, onlineDrivers, pending,
-            activeTrips, tripsToday, completedToday, revenueToday);
+            activeTrips, tripsToday, completedToday, revenueToday, grossFaresToday);
     }
 
     public async Task<IReadOnlyList<AdminTripListItem>> ListTripsAsync(
