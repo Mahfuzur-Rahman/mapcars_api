@@ -97,6 +97,7 @@ so re-running them is safe.
 | `036_customer_payment_methods.sql` | `customer_payment_methods` (saved cards — provider token + display metadata only, never card data), `customers` (+ `stripe_customer_id`) |
 | `037_trip_card_payment.sql` | `trips` (+ card charge state incl. the `ChargeStartedAtUtc` atomic claim flag). Also backfills cancelled/expired trips from `Pending` to `Voided` — they had been reading as unsettled fares |
 | `038_trip_pin_verification.sql` | `trips` (+ `PinVerifiedAtUtc`/`PinAttemptCount`). The kerbside PIN was only ever checked in the driver app, so it proved nothing and left no evidence. Independent of `031` — safe to apply any time |
+| `039_password_reset_and_otp_attempts.sql` | `verification_codes` (+ `attempt_count`, provider `'reset'`). Self-service password reset, and a cap of 5 wrong guesses per code for every OTP flow (guessing was unlimited). **Applied 2026-09-26.** Additive — the new image REQUIRES it, the old one ignores it |
 
 ## Conventions
 

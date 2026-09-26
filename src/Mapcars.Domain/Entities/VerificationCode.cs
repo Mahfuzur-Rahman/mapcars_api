@@ -13,4 +13,7 @@ public class VerificationCode
 
     // Which provider delivered this OTP: twilio | telnyx | smtp | resend | console
     public string? SentVia { get; set; }
+
+    /// <summary>Wrong guesses against this code so far; burnt at the cap (migration 039).</summary>
+    public int AttemptCount { get; set; }
 }

@@ -19,5 +19,6 @@ public class VerificationCodeConfiguration : IEntityTypeConfiguration<Verificati
         b.Property(v => v.UsedAt).HasColumnName("used_at");
         b.Property(v => v.CreatedAt).HasColumnName("created_at");
         b.Property(v => v.SentVia).HasColumnName("sent_via").HasMaxLength(20);
+        b.Property(v => v.AttemptCount).HasColumnName("attempt_count");
     }
 }

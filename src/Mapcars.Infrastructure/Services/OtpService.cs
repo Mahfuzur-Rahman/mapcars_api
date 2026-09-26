@@ -15,6 +15,10 @@ public class OtpService(
     private const int PhoneExpiryMinutes = 5;
     private const int EmailExpiryMinutes = 3;
 
+    // Long enough to find the email and switch apps, short enough that a code
+    // sitting in an inbox isn't a standing key to the account.
+    private const int ResetExpiryMinutes = 15;
+
     public async Task<string> CreateAndSendPhoneOtpAsync(string userType, string phone, CancellationToken ct = default)
     {
         var code = await CreateCodeAsync(userType, "phone", phone, PhoneExpiryMinutes, sms.ProviderName, ct);
@@ -49,28 +53,74 @@ public class OtpService(
         return code;
     }
 
+    public async Task CreateAndSendPasswordResetAsync(string userType, string emailAddr, CancellationToken ct = default)
+    {
+        var code = await CreateCodeAsync(
+            userType, IOtpService.ResetProvider, emailAddr, ResetExpiryMinutes, email.ProviderName, ct);
+        try
+        {
+            await email.SendAsync(
+                emailAddr,
+                "Reset your MAP CARS password",
+                $"Your password reset code is <strong>{code}</strong>. It expires in {ResetExpiryMinutes} minutes." +
+                "<br><br>If you didn't ask to reset your password, you can ignore this email — " +
+                "your password hasn't changed.",
+                ct: ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to send password reset email to {Email}", emailAddr);
+        }
+    }
+
     public async Task<bool> VerifyAsync(string userType, string provider, string identifier, string code, CancellationToken ct = default)
     {
+        // The live code: CreateCodeAsync retires older ones, so there is at most
+        // one. Look it up WITHOUT matching the code, so a wrong guess can be
+        // counted against it — matching on the code meant a guess that missed
+        // found nothing to count, and guessing was unlimited for the code's
+        // whole lifetime.
+        var now = DateTime.UtcNow;
         var record = await db.VerificationCodes
             .Where(v =>
                 v.UserType == userType &&
                 v.Provider == provider &&
                 v.Identifier == identifier &&
-                v.Code == code &&
                 v.UsedAt == null &&
-                v.ExpiresAt > DateTime.UtcNow)
+                v.ExpiresAt > now)
             .OrderByDescending(v => v.CreatedAt)
             .FirstOrDefaultAsync(ct);
 
         if (record is null)
         {
-            logger.LogWarning("OTP verification failed for {Provider}:{Identifier}", provider, identifier);
+            logger.LogWarning("OTP verification failed for {Provider}:{Identifier} (no live code)", provider, identifier);
             return false;
         }
 
-        record.UsedAt = DateTime.UtcNow;
+        if (!FixedTimeEquals(record.Code, code))
+        {
+            record.AttemptCount++;
+            if (record.AttemptCount >= IOtpService.MaxAttempts)
+            {
+                record.UsedAt = now; // burnt — the next attempt finds no live code
+                logger.LogWarning("OTP for {Provider}:{Identifier} burnt after {Attempts} wrong attempts",
+                    provider, identifier, record.AttemptCount);
+            }
+            await db.SaveChangesAsync(ct);
+            return false;
+        }
+
+        record.UsedAt = now;
         await db.SaveChangesAsync(ct);
         return true;
+    }
+
+    private static bool FixedTimeEquals(string expected, string actual)
+    {
+        var diff = expected.Length ^ actual.Length;
+        for (var i = 0; i < expected.Length && i < actual.Length; i++)
+            diff |= expected[i] ^ actual[i];
+        return diff == 0;
     }
 
     private async Task<string> CreateCodeAsync(

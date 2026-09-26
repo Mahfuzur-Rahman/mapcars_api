@@ -61,6 +61,7 @@ public static class DependencyInjection
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<IUnifiedAuthService, UnifiedAuthService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+        services.AddScoped<IPasswordResetService, PasswordResetService>();
         services.AddScoped<IAdminAuthService, AdminAuthService>();
         services.AddScoped<IAdminManagementService, AdminManagementService>();
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();

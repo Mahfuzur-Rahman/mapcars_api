@@ -14,8 +14,37 @@ namespace Mapcars.Api.Controllers;
 [Route("api/v1/auth")]
 public class AuthController(
     IUnifiedAuthService authService,
-    IRefreshTokenService refreshTokens) : ControllerBase
+    IRefreshTokenService refreshTokens,
+    IPasswordResetService passwordReset) : ControllerBase
 {
+    /// <summary>
+    /// Emails a 6-digit reset code to a customer or driver account. Always 202,
+    /// whether or not the account exists — this must not answer "is this email
+    /// registered?". Rate-limited as a billable send.
+    /// </summary>
+    [HttpPost("password/forgot")]
+    [EnableRateLimiting("otp")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken ct)
+    {
+        await passwordReset.RequestAsync(request, ct);
+        return Accepted();
+    }
+
+    /// <summary>
+    /// Sets a new password with the emailed code, and signs the account out on
+    /// every device. 400 on a wrong, expired or burnt code (5 wrong guesses burn it).
+    /// </summary>
+    [HttpPost("password/reset")]
+    [EnableRateLimiting("auth")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, CancellationToken ct)
+    {
+        await passwordReset.ResetAsync(request, ct);
+        return NoContent();
+    }
+
     [HttpPost("login")]
     [EnableRateLimiting("auth")]
     public async Task<IActionResult> Login([FromBody] UnifiedLoginRequest request, CancellationToken ct)
