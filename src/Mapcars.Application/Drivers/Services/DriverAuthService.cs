@@ -90,8 +90,9 @@ public class DriverAuthService(
         // See CustomerAuthService.SignUpWithEmailAsync: a row tied to a social
         // identity or a verified phone is never an abandoned sign-up.
         if (existing is not null && (existing.IsEmailVerified || SocialAccountLink.HasEstablishedIdentity(existing)))
-            throw new DomainException(existing.PasswordHash is null
-                // Google-only account — never had a password to overwrite.
+            throw new DomainException(existing.PasswordHash is null && existing.GoogleSub is not null
+                // Google-only account — never had a password to overwrite. Only a row that
+                // really has a GoogleSub gets this wording (see CustomerAuthService).
                 ? "This email is linked to a Google account. Please continue with Google to sign in."
                 : "An account with this email already exists. Please log in instead.");
 

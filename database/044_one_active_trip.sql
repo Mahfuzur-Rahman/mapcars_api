@@ -25,12 +25,14 @@
 -- offending trip ids — so a refusal leaves the table exactly as it was. Settle
 -- the listed trips (complete or cancel the stale ones) and re-run.
 --
--- Safe to apply BEFORE the image that relies on it (the 029 discipline): the
--- running API never means to write a second live trip, so it only meets these
--- indexes in the race they exist to stop — where the old image answers 500 and
--- the new one answers with the pre-check's message. CREATE INDEX (not
--- CONCURRENTLY) blocks writes to trips while it builds: sub-second at current
--- volumes.
+-- Apply WITH or AFTER the new API image — NEVER before it. The previous image has
+-- no open-trip / active-trip pre-check, so once these indexes exist any
+-- sequential second booking or accept (second device, stale app, direct API
+-- call) hits the index and answers 500 plus an error_logs Error row. The new
+-- image behaves correctly without the indexes (its pre-checks do the work);
+-- they only backstop the race between two concurrent requests. CREATE INDEX
+-- (not CONCURRENTLY) blocks writes to trips while it builds: sub-second at
+-- current volumes.
 --
 -- trips uses all-PascalCase quoted columns (013/017/018/024/029/037/038).
 -- Idempotent. Database-first (no EF migrations). Run AFTER 031 ("CustomerId").

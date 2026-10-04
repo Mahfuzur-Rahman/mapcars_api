@@ -232,6 +232,58 @@ public class UnverifiedEmailAccountTests
         Assert.Null(row.PasswordHash);
     }
 
+    private const string GoogleLinkedMessage = "This email is linked to a Google account. Please continue with Google to sign in.";
+
+    [Fact]
+    public async Task Driver_signup_against_a_password_less_google_row_gets_the_google_message()
+    {
+        var row = DriverRow(RowKind.GoogleLinked);
+        row.PasswordHash = null;
+
+        var ex = await Assert.ThrowsAsync<DomainException>(() =>
+            DriverService(row, new SpyRefreshTokens(), new Otp(), new FakeUnitOfWork())
+                .SignUpWithEmailAsync(RowEmail, "pw-12345", "Attacker"));
+
+        Assert.Equal(GoogleLinkedMessage, ex.Message);
+        Assert.Null(row.PasswordHash);
+    }
+
+    // The Google wording steers the caller to Google sign-in (which claims the
+    // row), and tells them which method the account uses. Only a row that really
+    // has a GoogleSub gets it; any other password-less identity (Apple-only,
+    // phone-only) gets the generic message so no sign-in method is revealed.
+    [Theory]
+    [InlineData(RowKind.AppleLinked)]
+    [InlineData(RowKind.VerifiedPhone)]
+    public async Task Customer_signup_against_a_password_less_non_google_row_gets_the_generic_message(RowKind kind)
+    {
+        var row = CustomerRow(kind);
+        row.PasswordHash = null;
+
+        var ex = await Assert.ThrowsAsync<DomainException>(() =>
+            CustomerService(row, new SpyRefreshTokens(), new Otp(), new FakeUnitOfWork())
+                .SignUpWithEmailAsync(RowEmail, "pw-12345", "Attacker"));
+
+        Assert.Equal(AlreadyExists, ex.Message);
+        Assert.Null(row.PasswordHash);
+    }
+
+    [Theory]
+    [InlineData(RowKind.AppleLinked)]
+    [InlineData(RowKind.VerifiedPhone)]
+    public async Task Driver_signup_against_a_password_less_non_google_row_gets_the_generic_message(RowKind kind)
+    {
+        var row = DriverRow(kind);
+        row.PasswordHash = null;
+
+        var ex = await Assert.ThrowsAsync<DomainException>(() =>
+            DriverService(row, new SpyRefreshTokens(), new Otp(), new FakeUnitOfWork())
+                .SignUpWithEmailAsync(RowEmail, "pw-12345", "Attacker"));
+
+        Assert.Equal(AlreadyExists, ex.Message);
+        Assert.Null(row.PasswordHash);
+    }
+
     [Fact]
     public async Task Customer_retrying_an_abandoned_signup_overwrites_the_password_and_revokes_sessions()
     {

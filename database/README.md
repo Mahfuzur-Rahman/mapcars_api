@@ -54,8 +54,10 @@ psql -U postgres -d mapcars -f 032_user_type_finalize.sql
 > actually executed, and it means every fresh build rehearses the real
 > migration.
 
-All scripts are idempotent (`CREATE TABLE IF NOT EXISTS`, `ON CONFLICT DO NOTHING`),
-so re-running them is safe.
+Scripts are run once, in order — do **not** assume they are safe to re-run (e.g.
+`034` and `043` are not idempotent, and the `*_rollback.sql` scripts undo migrations).
+Write new scripts idempotent where practical (`CREATE TABLE IF NOT EXISTS`,
+`ON CONFLICT DO NOTHING`).
 
 | Script | Tables |
 |--------|--------|
@@ -102,7 +104,7 @@ so re-running them is safe.
 | `041_driver_statements.sql` | `driver_statements`, `driver_statement_lines` (new). Weekly driver statements in integer pence; signed lines (card = owed to driver, cash = commission owed to us); unique per driver-week and per trip. **Applied 2026-09-26.** Additive — the new image REQUIRES it (hourly build job) |
 | `042_statements_menu.sql` | `menus`/`role_menus`: "Statements" under Payments (`/admin/payments/statements`), SuperAdmin + Admin, seeded **inactive**. **Applied 2026-09-26** (row 57, hidden) |
 | `043_activate_statements_menu.sql` | Reveals row 57. ⚠️ **Run at deploy time, AFTER the web build with the statements page is live** |
-| `044_one_active_trip.sql` | `trips` (+ partial unique indexes `uix_trips_one_active_per_driver` — one DriverAssigned/DriverArrived/InProgress trip per driver — and `uix_trips_one_open_per_customer` — one Requested…InProgress trip per customer). Backstops the accept/booking checks under a race; the API matches violations by index name. **Refuses, listing the trip ids, if live data already breaks either rule** — settle those trips and re-run. Safe to apply before the image that relies on it |
+| `044_one_active_trip.sql` | `trips` (+ partial unique indexes `uix_trips_one_active_per_driver` — one DriverAssigned/DriverArrived/InProgress trip per driver — and `uix_trips_one_open_per_customer` — one Requested…InProgress trip per customer). Backstops the accept/booking checks under a race; the API matches violations by index name. **Refuses, listing the trip ids, if live data already breaks either rule** — settle those trips and re-run. **Apply WITH or AFTER the new API image, never before** — the previous image has no open-trip/active-trip pre-check, so a sequential second booking or accept would hit the index and return a 500 (+ an `error_logs` Error row). The new image is correct without the index; the index only backstops the race between two concurrent requests |
 
 ## Conventions
 

@@ -112,6 +112,9 @@ public class TripRepository : GenericRepository<Trip>, ITripRepository
             .OrderByDescending(t => t.CreatedAtUtc)
             .FirstOrDefaultAsync(ct);
 
+    // NOTE: this calls Context.SaveChangesAsync, which commits the WHOLE unit of
+    // work — every change pending on the context, not just this trip. Callers must
+    // not have unrelated pending changes when they call it.
     public async Task<bool> TryAddRequestAsync(Trip trip, CancellationToken ct = default)
     {
         Set.Add(trip);

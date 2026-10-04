@@ -85,8 +85,10 @@ public class CustomerAuthService(
         // one, which the owner is then told to "verify" into place. Same answer as
         // for a verified account, so nothing new is revealed.
         if (existing is not null && (existing.IsEmailVerified || SocialAccountLink.HasEstablishedIdentity(existing)))
-            throw new DomainException(existing.PasswordHash is null
-                // Google-only account — never had a password to overwrite.
+            throw new DomainException(existing.PasswordHash is null && existing.GoogleSub is not null
+                // Google-only account — never had a password to overwrite. Only a row that
+                // really has a GoogleSub gets this wording; Apple-only / phone-only rows get
+                // the generic message so no other sign-in method is revealed.
                 ? "This email is linked to a Google account. Please continue with Google to sign in."
                 : "An account with this email already exists. Please log in instead.");
 

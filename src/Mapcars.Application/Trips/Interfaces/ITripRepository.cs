@@ -68,6 +68,11 @@ public interface ITripRepository : IGenericRepository<Trip>
     /// Add a new open request and save it. Returns false — with nothing saved —
     /// if the customer already has an open trip: the race where two bookings by
     /// one customer land together, past the service's own check.
+    /// <para>
+    /// The save commits the WHOLE unit of work (everything pending on the
+    /// context, not just this trip), so callers must not have unrelated pending
+    /// changes when they call it.
+    /// </para>
     /// </summary>
     Task<bool> TryAddRequestAsync(Trip trip, CancellationToken ct = default);
 
