@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using Mapcars.Api.Filters;
+using Mapcars.Application.Admins;
 using Mapcars.Application.Statements.Dtos;
 using Mapcars.Application.Statements.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -27,10 +29,11 @@ public class DriverStatementsController(IDriverStatementService statements) : Co
         => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
 }
 
-/// <summary>Every driver's statements, for the admin portal.</summary>
+/// <summary>Every driver's statements, for the admin portal's Statements page.</summary>
 [ApiController]
 [Route("api/v1/admin/statements")]
 [Authorize(Roles = "SuperAdmin,Admin")]
+[RequiresAdminMenu(AdminMenuPaths.Statements)]
 public class AdminStatementsController(IDriverStatementService statements) : ControllerBase
 {
     /// <summary>Newest week first. <paramref name="periodStart"/> (UTC instant of the week's start) narrows to one week.</summary>

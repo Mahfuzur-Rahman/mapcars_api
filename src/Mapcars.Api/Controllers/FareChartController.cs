@@ -1,3 +1,5 @@
+using Mapcars.Api.Filters;
+using Mapcars.Application.Admins;
 using Mapcars.Application.Pricing.Interfaces;
 using Mapcars.Application.Pricing.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -28,6 +30,7 @@ public class FareChartController : ControllerBase
     /// <summary>Publish a new fare chart. Returns it with its new version.</summary>
     [HttpPut]
     [Authorize(Roles = "SuperAdmin")]
+    [RequiresAdminMenu(AdminMenuPaths.FareSettings)]
     [ProducesResponseType(typeof(FareChart), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<FareChart>> Update([FromBody] FareChart chart, CancellationToken ct)

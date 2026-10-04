@@ -66,6 +66,7 @@ public static class DependencyInjection
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<IDriverRepository, DriverRepository>();
         services.AddScoped<IAdminRepository, AdminRepository>();
+        services.AddScoped<IAdminMenuAccessRepository, AdminRepository>();
         services.AddScoped<IAdminReportingRepository, AdminReportingRepository>();
         services.AddScoped<ITripRepository, TripRepository>();
         services.AddScoped<IDocumentRepository, DocumentRepository>();

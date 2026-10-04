@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using Mapcars.Api.Filters;
+using Mapcars.Application.Admins;
 using Mapcars.Application.Emails.Dtos;
 using Mapcars.Application.Emails.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -9,11 +11,13 @@ namespace Mapcars.Api.Controllers;
 /// <summary>
 /// The Email page in the admin portal — every send the platform has made
 /// (OTP codes, welcome emails, ...) plus the Compose feature for ad-hoc mail.
-/// SuperAdmin and Admin only, same as <see cref="AdminErrorLogsController"/>.
+/// SuperAdmin and Admin only, same as <see cref="AdminErrorLogsController"/>, and
+/// only for admins holding the Email menu.
 /// </summary>
 [ApiController]
 [Route("api/v1/admin/emails")]
 [Authorize(Roles = "SuperAdmin,Admin")]
+[RequiresAdminMenu(AdminMenuPaths.Emails)]
 public class AdminEmailsController : ControllerBase
 {
     private readonly IEmailAdminService _emails;

@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using Mapcars.Api.Filters;
+using Mapcars.Application.Admins;
 using Mapcars.Application.Posters.Dtos;
 using Mapcars.Application.Posters.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +12,8 @@ namespace Mapcars.Api.Controllers;
 /// Landing-page poster management. Admin CRUD is authenticated; the two
 /// read routes used by the public landing page (<see cref="ListActive"/>,
 /// <see cref="GetImage"/>) are anonymous — posters are public marketing
-/// content, unlike the private KYC documents proxy.
+/// content, unlike the private KYC documents proxy. The admin actions are gated
+/// on the Posters menu one by one, leaving the two public routes untouched.
 /// </summary>
 [ApiController]
 [Route("api/v1/posters")]
@@ -22,6 +25,7 @@ public class PostersController : ControllerBase
     public PostersController(IPosterService posters) => _posters = posters;
 
     [HttpPost]
+    [RequiresAdminMenu(AdminMenuPaths.Posters)]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(25 * 1024 * 1024)]
     [ProducesResponseType(typeof(PosterResponse), StatusCodes.Status201Created)]
@@ -39,17 +43,20 @@ public class PostersController : ControllerBase
     }
 
     [HttpGet]
+    [RequiresAdminMenu(AdminMenuPaths.Posters)]
     [ProducesResponseType(typeof(IReadOnlyList<PosterResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<PosterResponse>>> List(CancellationToken ct)
         => Ok(await _posters.ListAllAsync(ct));
 
     [HttpPut("{id:guid}")]
+    [RequiresAdminMenu(AdminMenuPaths.Posters)]
     [ProducesResponseType(typeof(PosterResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PosterResponse>> Update(Guid id, UpdatePosterRequest request, CancellationToken ct)
         => Ok(await _posters.UpdateAsync(id, request, ct));
 
     [HttpPost("{id:guid}/image")]
+    [RequiresAdminMenu(AdminMenuPaths.Posters)]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(25 * 1024 * 1024)]
     [ProducesResponseType(typeof(PosterResponse), StatusCodes.Status200OK)]
@@ -66,6 +73,7 @@ public class PostersController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [RequiresAdminMenu(AdminMenuPaths.Posters)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)

@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using Mapcars.Api.Filters;
+using Mapcars.Application.Admins;
 using Mapcars.Application.ErrorLogs.Dtos;
 using Mapcars.Application.ErrorLogs.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -63,11 +65,12 @@ public class ErrorLogsController : ControllerBase
 /// <summary>
 /// The Error Logger page in the admin portal. SuperAdmin and Admin only —
 /// stack traces and user ids are not something a customer or driver token should
-/// ever reach.
+/// ever reach — and only for admins holding the Error Logger menu.
 /// </summary>
 [ApiController]
 [Route("api/v1/admin/error-logs")]
 [Authorize(Roles = "SuperAdmin,Admin")]
+[RequiresAdminMenu(AdminMenuPaths.ErrorLogs)]
 public class AdminErrorLogsController : ControllerBase
 {
     private readonly IErrorLogService _errors;

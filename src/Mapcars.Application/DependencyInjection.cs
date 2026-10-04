@@ -70,6 +70,7 @@ public static class DependencyInjection
         services.AddScoped<IDriverStatementService, DriverStatementService>();
         services.AddScoped<IAdminAuthService, AdminAuthService>();
         services.AddScoped<IAdminManagementService, AdminManagementService>();
+        services.AddScoped<IAdminMenuAuthorizer, AdminMenuAuthorizer>();
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();
         services.AddScoped<ICustomerAuthService, CustomerAuthService>();
         services.AddScoped<IDriverAuthService, DriverAuthService>();

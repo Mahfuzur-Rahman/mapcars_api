@@ -16,7 +16,7 @@ namespace Mapcars.Api.Middleware;
 /// It is also where every API failure enters the central error log
 /// (<c>error_logs</c>, read from the admin portal's Error Logger page).
 /// Unhandled exceptions land as <see cref="ErrorLevel.Error"/>; the handled
-/// business rejections (validation, not-found, unauthorised, domain rules) land
+/// business rejections (validation, not-found, unauthorised, forbidden, domain rules) land
 /// as <see cref="ErrorLevel.Warning"/> so a wall of ordinary 400s can be
 /// filtered away from the 500s that actually need someone's attention.
 /// </summary>
@@ -46,6 +46,11 @@ public class ExceptionHandlingMiddleware
         {
             await LogAsync(context, ex, HttpStatusCode.Unauthorized, ErrorLevel.Warning);
             await WriteProblemAsync(context, HttpStatusCode.Unauthorized, ex.Message);
+        }
+        catch (ForbiddenException ex)
+        {
+            await LogAsync(context, ex, HttpStatusCode.Forbidden, ErrorLevel.Warning);
+            await WriteProblemAsync(context, HttpStatusCode.Forbidden, ex.Message);
         }
         catch (NotFoundException ex)
         {

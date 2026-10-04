@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using Mapcars.Api.Filters;
+using Mapcars.Application.Admins;
 using Mapcars.Application.Settings.Dtos;
 using Mapcars.Application.Settings.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -35,6 +37,7 @@ public class PaymentSettingsController(IPaymentSettingsService settings) : Contr
     /// <summary>The full settings document, including the fraud thresholds.</summary>
     [HttpGet("admin")]
     [Authorize(Roles = "SuperAdmin")]
+    [RequiresAdminMenu(AdminMenuPaths.PaymentSettings)]
     [ProducesResponseType(typeof(AdminPaymentSettingsResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<AdminPaymentSettingsResponse>> GetForAdmin(CancellationToken ct)
         => Ok(await settings.GetForAdminAsync(ct));
@@ -45,6 +48,7 @@ public class PaymentSettingsController(IPaymentSettingsService settings) : Contr
     /// </summary>
     [HttpPut]
     [Authorize(Roles = "SuperAdmin")]
+    [RequiresAdminMenu(AdminMenuPaths.PaymentSettings)]
     [ProducesResponseType(typeof(AdminPaymentSettingsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<AdminPaymentSettingsResponse>> Update(
@@ -55,8 +59,10 @@ public class PaymentSettingsController(IPaymentSettingsService settings) : Contr
     }
 
     /// <summary>One driver's payment overrides, with the effective result resolved.</summary>
+    /// <remarks>Shown and edited on the portal's Driver Detail page.</remarks>
     [HttpGet("drivers/{driverId:guid}")]
     [Authorize(Roles = "SuperAdmin,Admin")]
+    [RequiresAdminMenu(AdminMenuPaths.DriverDetail)]
     [ProducesResponseType(typeof(DriverPaymentOptionsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<DriverPaymentOptionsResponse>> GetDriverOptions(
@@ -69,6 +75,7 @@ public class PaymentSettingsController(IPaymentSettingsService settings) : Contr
     /// </summary>
     [HttpPut("drivers/{driverId:guid}")]
     [Authorize(Roles = "SuperAdmin,Admin")]
+    [RequiresAdminMenu(AdminMenuPaths.DriverDetail)]
     [ProducesResponseType(typeof(DriverPaymentOptionsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

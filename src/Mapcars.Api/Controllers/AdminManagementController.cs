@@ -1,3 +1,5 @@
+using Mapcars.Api.Filters;
+using Mapcars.Application.Admins;
 using Mapcars.Application.Admins.Dtos;
 using Mapcars.Application.Admins.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -8,10 +10,16 @@ namespace Mapcars.Api.Controllers;
 /// <summary>
 /// SuperAdmin-only management of admins and their menu access.
 /// (Login / setup / self-registration live in <see cref="AdminAuthController"/>.)
+/// <para>
+/// The role stays SuperAdmin even though the Admin Users menu could be granted
+/// to an Admin by override: with this surface an Admin could grant themselves
+/// every menu. The menu gate adds only the active-account check.
+/// </para>
 /// </summary>
 [ApiController]
 [Route("api/v1/admin")]
 [Authorize(Roles = "SuperAdmin")]
+[RequiresAdminMenu(AdminMenuPaths.AdminUsers)]
 public class AdminManagementController(IAdminManagementService management) : ControllerBase
 {
     /// <summary>List every admin, with their effective menu count.</summary>

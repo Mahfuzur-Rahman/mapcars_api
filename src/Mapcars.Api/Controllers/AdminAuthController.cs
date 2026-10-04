@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using Mapcars.Api.Filters;
+using Mapcars.Application.Admins;
 using Mapcars.Application.Admins.Dtos;
 using Mapcars.Application.Admins.Interfaces;
 using Mapcars.Application.Common.Dtos;
@@ -32,6 +34,9 @@ public class AdminAuthController(IAdminAuthService authService) : ControllerBase
         return Ok(result);
     }
 
+    // This and change-password are deliberately not [RequiresAdminMenu]-gated:
+    // they are the admin's own account, needed whatever menus they hold.
+
     /// <summary>Returns the current admin's profile + menu tree (refreshes token).</summary>
     [Authorize]
     [HttpGet("me")]
@@ -52,8 +57,9 @@ public class AdminAuthController(IAdminAuthService authService) : ControllerBase
         return NoContent();
     }
 
-    /// <summary>SuperAdmin only — creates a new admin account.</summary>
+    /// <summary>SuperAdmin only — creates a new admin account (the Admin Users page).</summary>
     [Authorize(Roles = "SuperAdmin")]
+    [RequiresAdminMenu(AdminMenuPaths.AdminUsers)]
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] CreateAdminRequest request, CancellationToken ct)
     {

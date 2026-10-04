@@ -16,7 +16,8 @@ namespace Mapcars.Application.Admins.Services;
 /// </summary>
 public class AdminManagementService(IAdminRepository adminRepo, IUnitOfWork uow) : IAdminManagementService
 {
-    private const int SuperAdminRoleId = 1;
+    // Shared with the API's menu check, which lets this role through unconditionally.
+    private const int SuperAdminRoleId = AdminMenuAccess.SuperAdminRoleId;
 
     public async Task<List<AdminListItemResponse>> GetAllAdminsAsync(CancellationToken ct = default)
     {

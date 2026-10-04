@@ -1,3 +1,5 @@
+using Mapcars.Api.Filters;
+using Mapcars.Application.Admins;
 using Mapcars.Application.Customers.Dtos;
 using Mapcars.Application.Customers.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -24,7 +26,9 @@ public class CustomersController : ControllerBase
 
     public CustomersController(ICustomerService customers) => _customers = customers;
 
+    // No portal page creates customers; gated on the list page, where one would.
     [HttpPost]
+    [RequiresAdminMenu(AdminMenuPaths.CustomerList)]
     [ProducesResponseType(typeof(CustomerResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<CustomerResponse>> Create(
@@ -35,12 +39,14 @@ public class CustomersController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequiresAdminMenu(AdminMenuPaths.CustomerDetail)]
     [ProducesResponseType(typeof(CustomerResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CustomerResponse>> GetById(Guid id, CancellationToken ct)
         => Ok(await _customers.GetByIdAsync(id, ct));
 
     [HttpGet]
+    [RequiresAdminMenu(AdminMenuPaths.CustomerList)]
     [ProducesResponseType(typeof(IReadOnlyList<CustomerResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<CustomerResponse>>> List(CancellationToken ct)
         => Ok(await _customers.ListAsync(ct));

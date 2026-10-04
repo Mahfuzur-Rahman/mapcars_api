@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using Mapcars.Api.Filters;
+using Mapcars.Application.Admins;
 using Mapcars.Application.Documents.Dtos;
 using Mapcars.Application.DriverReview.Dtos;
 using Mapcars.Application.DriverReview.Interfaces;
@@ -14,6 +16,8 @@ namespace Mapcars.Api.Controllers;
 /// Admin driver-verification and vehicle tier workflow: browse drivers awaiting approval, view
 /// their uploaded documents, approve/reject each document, set driver status, manage vehicle tiers,
 /// and review tier upgrade appeals. Admin-only — both SuperAdmin and Admin roles.
+/// Each action is also gated on the menu(s) of the portal page(s) that call it:
+/// Driver List, Driver Detail, Documents and Tier Appeals are granted separately.
 /// </summary>
 [ApiController]
 [Route("api/v1/admin/driver-review")]
@@ -26,18 +30,21 @@ public class AdminDriverReviewController : ControllerBase
 
     /// <summary>List drivers for review, optionally filtered by status (e.g. ?status=PendingApproval).</summary>
     [HttpGet("drivers")]
+    [RequiresAdminMenu(AdminMenuPaths.DriverList)]
     [ProducesResponseType(typeof(IReadOnlyList<DriverReviewListItem>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListDrivers([FromQuery] DriverStatus? status, CancellationToken ct)
         => Ok(await _review.ListDriversAsync(status, ct));
 
     /// <summary>List all driver documents across all drivers, optionally filtered by review status.</summary>
     [HttpGet("documents")]
+    [RequiresAdminMenu(AdminMenuPaths.DriverDocuments)]
     [ProducesResponseType(typeof(IReadOnlyList<DriverDocumentListItem>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListDocuments([FromQuery] DocumentReviewStatus? status, CancellationToken ct)
         => Ok(await _review.ListAllDocumentsAsync(status, ct));
 
     /// <summary>Full detail for one driver: profile, vehicle, and documents.</summary>
     [HttpGet("drivers/{driverId:guid}")]
+    [RequiresAdminMenu(AdminMenuPaths.DriverDetail)]
     [ProducesResponseType(typeof(DriverReviewDetail), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetDriver(Guid driverId, CancellationToken ct)
@@ -45,6 +52,7 @@ public class AdminDriverReviewController : ControllerBase
 
     /// <summary>Stream a document's bytes for viewing (image or PDF). Never a public URL.</summary>
     [HttpGet("documents/{documentId:guid}/content")]
+    [RequiresAdminMenu(AdminMenuPaths.DriverDocuments, AdminMenuPaths.DriverDetail)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetDocumentContent(Guid documentId, CancellationToken ct)
@@ -59,6 +67,7 @@ public class AdminDriverReviewController : ControllerBase
 
     /// <summary>Approve or reject a single document.</summary>
     [HttpPut("documents/{documentId:guid}/review")]
+    [RequiresAdminMenu(AdminMenuPaths.DriverDocuments, AdminMenuPaths.DriverDetail)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -70,6 +79,7 @@ public class AdminDriverReviewController : ControllerBase
 
     /// <summary>Approve (delete) or reject a document deletion request.</summary>
     [HttpPut("documents/{documentId:guid}/deletion-review")]
+    [RequiresAdminMenu(AdminMenuPaths.DriverDetail)]
     [ProducesResponseType(typeof(DocumentResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -81,13 +91,16 @@ public class AdminDriverReviewController : ControllerBase
     }
 
     /// <summary>List all documents with pending deletion requests across the platform.</summary>
+    /// <remarks>No portal page calls this yet; gated on the two pages that handle documents.</remarks>
     [HttpGet("document-deletions")]
+    [RequiresAdminMenu(AdminMenuPaths.DriverDocuments, AdminMenuPaths.DriverDetail)]
     [ProducesResponseType(typeof(IReadOnlyList<DriverDocumentListItem>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListPendingDeletions(CancellationToken ct)
         => Ok(await _review.ListPendingDocumentDeletionsAsync(ct));
 
     /// <summary>Set the driver's overall status (Approved / Rejected / Suspended / PendingApproval).</summary>
     [HttpPut("drivers/{driverId:guid}/status")]
+    [RequiresAdminMenu(AdminMenuPaths.DriverDetail)]
     [ProducesResponseType(typeof(DriverReviewDetail), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -101,6 +114,7 @@ public class AdminDriverReviewController : ControllerBase
 
     /// <summary>Admin directly sets/overrides a driver's vehicle tier.</summary>
     [HttpPut("drivers/{driverId:guid}/tier")]
+    [RequiresAdminMenu(AdminMenuPaths.DriverDetail)]
     [ProducesResponseType(typeof(VehicleResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -109,18 +123,21 @@ public class AdminDriverReviewController : ControllerBase
 
     /// <summary>List tier appeals for a specific driver.</summary>
     [HttpGet("drivers/{driverId:guid}/appeals")]
+    [RequiresAdminMenu(AdminMenuPaths.DriverDetail)]
     [ProducesResponseType(typeof(IReadOnlyList<VehicleTierAppealResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetDriverAppeals(Guid driverId, CancellationToken ct)
         => Ok(await _review.GetTierAppealsForDriverAsync(driverId, ct));
 
     /// <summary>List tier appeals across all drivers with optional status filter.</summary>
     [HttpGet("tier-appeals")]
+    [RequiresAdminMenu(AdminMenuPaths.TierAppeals)]
     [ProducesResponseType(typeof(IReadOnlyList<TierAppealListItem>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListTierAppeals([FromQuery] TierAppealStatus? status, CancellationToken ct)
         => Ok(await _review.ListTierAppealsAsync(status, ct));
 
     /// <summary>Stream an attached photo from a tier appeal for admin preview.</summary>
     [HttpGet("tier-appeals/{appealId:guid}/photos/{photoIndex:int}/content")]
+    [RequiresAdminMenu(AdminMenuPaths.TierAppeals, AdminMenuPaths.DriverDetail)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAppealPhotoContent(Guid appealId, int photoIndex, CancellationToken ct)
@@ -134,6 +151,7 @@ public class AdminDriverReviewController : ControllerBase
 
     /// <summary>Approve or reject a tier appeal (triggers automatic vehicle tier upgrade on approve, plus email and push).</summary>
     [HttpPut("tier-appeals/{appealId:guid}/review")]
+    [RequiresAdminMenu(AdminMenuPaths.TierAppeals, AdminMenuPaths.DriverDetail)]
     [ProducesResponseType(typeof(VehicleTierAppealResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

@@ -24,6 +24,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<ValidationActionFilter>();
+
+    // Admin menu permissions: an endpoint marked [RequiresAdminMenu] refuses an
+    // Admin who doesn't hold one of its menus (403). The portal only hides those
+    // menus; this is what actually enforces them.
+    options.Filters.Add<AdminMenuAuthorizationFilter>();
 });
 builder.Services.AddOpenApi();
 
