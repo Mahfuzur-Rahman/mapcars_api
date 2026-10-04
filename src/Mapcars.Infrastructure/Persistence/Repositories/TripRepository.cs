@@ -2,11 +2,19 @@ using Mapcars.Application.Trips.Interfaces;
 using Mapcars.Domain.Entities;
 using Mapcars.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Mapcars.Infrastructure.Persistence.Repositories;
 
 public class TripRepository : GenericRepository<Trip>, ITripRepository
 {
+    // The partial unique indexes from 044_one_active_trip.sql: one live trip per
+    // driver, one open trip per customer. A violation is matched by name, so these
+    // must stay identical to the script's. Deliberately not mirrored in
+    // TripConfiguration — EF would then drop its FK indexes on the same columns.
+    private const string OneActiveTripPerDriverIndex = "uix_trips_one_active_per_driver";
+    private const string OneOpenTripPerCustomerIndex = "uix_trips_one_open_per_customer";
+
     public TripRepository(AppDbContext context) : base(context) { }
 
     public async Task<IReadOnlyList<Trip>> ListForCustomerAsync(Guid customerId, CancellationToken ct = default)
@@ -104,7 +112,25 @@ public class TripRepository : GenericRepository<Trip>, ITripRepository
             .OrderByDescending(t => t.CreatedAtUtc)
             .FirstOrDefaultAsync(ct);
 
-    public async Task<bool> TryAssignAsync(Guid tripId, Guid driverId, CancellationToken ct = default)
+    public async Task<bool> TryAddRequestAsync(Trip trip, CancellationToken ct = default)
+    {
+        Set.Add(trip);
+        try
+        {
+            await Context.SaveChangesAsync(ct);
+            return true;
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex, OneOpenTripPerCustomerIndex))
+        {
+            // Two bookings by one customer landed together and both passed the
+            // service's open-trip check; the index let exactly one win. Detach the
+            // loser's copy so the context stays usable.
+            Context.Entry(trip).State = EntityState.Detached;
+            return false;
+        }
+    }
+
+    public async Task<TripClaimResult> TryAssignAsync(Guid tripId, Guid driverId, CancellationToken ct = default)
     {
         // Single atomic UPDATE — only one caller can flip Requested→DriverAssigned.
         //
@@ -115,16 +141,47 @@ public class TripRepository : GenericRepository<Trip>, ITripRepository
         // sweeper's cannot both match the same row.
         var now = DateTime.UtcNow;
 
-        var rows = await Set
-            .Where(t => t.Id == tripId
-                        && t.Status == TripStatus.Requested
-                        && t.DriverId == null
-                        && t.ExpiresAtUtc > now)
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(t => t.Status, TripStatus.DriverAssigned)
-                .SetProperty(t => t.DriverId, driverId), ct);
-        return rows == 1;
+        int rows;
+        try
+        {
+            rows = await Set
+                .Where(t => t.Id == tripId
+                            && t.Status == TripStatus.Requested
+                            && t.DriverId == null
+                            && t.ExpiresAtUtc > now)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(t => t.Status, TripStatus.DriverAssigned)
+                    .SetProperty(t => t.DriverId, driverId), ct);
+        }
+        catch (Exception ex) when (IsUniqueViolation(ex, OneActiveTripPerDriverIndex))
+        {
+            // Two accepts by one driver landed together and both passed the
+            // service's HasActiveTripAsync check; the index let exactly one win.
+            return TripClaimResult.DriverBusy;
+        }
+
+        if (rows != 1) return TripClaimResult.Unavailable;
+
+        // ExecuteUpdate writes the row directly and never touches the change
+        // tracker. The accept pre-checks loaded this trip through FindAsync, which
+        // tracks it, so the context still holds it as Requested with no driver —
+        // and GetByIdAsync would hand that stale copy straight back, into the
+        // response, the customer's tripUpdated and the "driver on the way" push.
+        var tracked = Set.Local.FindEntry(tripId);
+        if (tracked is not null) await tracked.ReloadAsync(ct);
+
+        return TripClaimResult.Assigned;
     }
+
+    /// <summary>
+    /// A unique violation on one specific index. Matched by name so that any
+    /// other unique violation still surfaces as the bug it would be. ExecuteUpdate
+    /// throws the provider exception bare; SaveChanges wraps it in a DbUpdateException.
+    /// </summary>
+    private static bool IsUniqueViolation(Exception ex, string indexName)
+        => (ex as PostgresException ?? ex.InnerException as PostgresException)
+               is { SqlState: PostgresErrorCodes.UniqueViolation } pg
+           && pg.ConstraintName == indexName;
 
     public async Task<bool> TryStartChargeAsync(
         Guid tripId, DateTime nowUtc, TimeSpan staleAfter, CancellationToken ct = default)

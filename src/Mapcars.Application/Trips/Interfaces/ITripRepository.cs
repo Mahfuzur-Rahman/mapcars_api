@@ -3,6 +3,22 @@ using Mapcars.Domain.Entities;
 
 namespace Mapcars.Application.Trips.Interfaces;
 
+/// <summary>How an attempt to claim an open request for a driver came out.</summary>
+public enum TripClaimResult
+{
+    /// <summary>The trip is now DriverAssigned to this driver.</summary>
+    Assigned,
+
+    /// <summary>Someone else took it, it was cancelled, or its window closed.</summary>
+    Unavailable,
+
+    /// <summary>
+    /// The driver is already on a live trip. Normally caught before the claim;
+    /// this is the race where two accepts by one driver land together.
+    /// </summary>
+    DriverBusy
+}
+
 public interface ITripRepository : IGenericRepository<Trip>
 {
     Task<IReadOnlyList<Trip>> ListForCustomerAsync(Guid customerId, CancellationToken ct = default);
@@ -49,11 +65,24 @@ public interface ITripRepository : IGenericRepository<Trip>
     Task<Trip?> GetActiveForDriverAsync(Guid driverId, CancellationToken ct = default);
 
     /// <summary>
-    /// Atomically assign a still-open trip to a driver (Requested + unassigned →
-    /// DriverAssigned). Returns false if it was already taken/cancelled — the
-    /// single guard against two drivers grabbing the same trip.
+    /// Add a new open request and save it. Returns false — with nothing saved —
+    /// if the customer already has an open trip: the race where two bookings by
+    /// one customer land together, past the service's own check.
     /// </summary>
-    Task<bool> TryAssignAsync(Guid tripId, Guid driverId, CancellationToken ct = default);
+    Task<bool> TryAddRequestAsync(Trip trip, CancellationToken ct = default);
+
+    /// <summary>
+    /// Atomically assign a still-open trip to a driver (Requested + unassigned →
+    /// DriverAssigned) — the single guard against two drivers grabbing the same
+    /// trip, and against one driver taking two at once.
+    ///
+    /// <para>
+    /// On <see cref="TripClaimResult.Assigned"/>, any copy of the trip this unit
+    /// of work already holds is refreshed from the row, so a following
+    /// <c>GetByIdAsync</c> sees it assigned rather than as it was before the claim.
+    /// </para>
+    /// </summary>
+    Task<TripClaimResult> TryAssignAsync(Guid tripId, Guid driverId, CancellationToken ct = default);
 
     /// <summary>
     /// Claim the exclusive right to charge this trip. Returns false if someone

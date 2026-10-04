@@ -166,6 +166,24 @@ public class TripService : ITripService
             throw new DomainException(DriverPaymentOptions.BlockedMessage(trip.PaymentMethod));
     }
 
+    /// <summary>
+    /// One trip at a time, in a car that fits it. The dispatch push already skips
+    /// busy drivers and both filter on tier, but a board is a cache and accept is
+    /// the call that commits. The tier test is the board's own rule, not a second
+    /// one: <see cref="DispatchService.IsTierCompatible"/>, with a driver who has
+    /// no vehicle on record let through exactly as the board lets them through.
+    /// </summary>
+    private async Task EnsureFreeAndRightTierAsync(Guid driverId, Guid tripId, CancellationToken ct)
+    {
+        if (await _trips.HasActiveTripAsync(driverId, ct))
+            throw new DomainException(ActiveTripMessage);
+
+        var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
+        var vehicle = await _vehicles.GetByDriverAsync(driverId, ct);
+        if (vehicle is not null && !DispatchService.IsTierCompatible(vehicle.Tier, trip.Tier))
+            throw new DomainException("This trip needs a different vehicle tier.");
+    }
+
     public async Task<TripResponse> CreateAsync(Guid customerId, CreateTripRequest req, CancellationToken ct = default)
     {
         // Payment eligibility before anything else: the admin switches, a saved
@@ -178,13 +196,17 @@ public class TripService : ITripService
         var eligibility = CustomerPaymentEligibility.Check(payments, paymentMethod, card is not null, debtPence);
         if (!eligibility.Allowed) throw new DomainException(eligibility.Reason!);
 
+        // One open trip per customer: both apps track a single live trip, and a
+        // second request would compete with the first for the same drivers.
+        if (await _trips.GetActiveForCustomerAsync(customerId, ct) is not null)
+            throw new DomainException(RideInProgressMessage);
+
         // Authoritative price for the chosen tier (route metrics are clamped inside).
-        var fare = await _pricing.PriceTierAsync(
+        var priced = await _pricing.PriceTierAsync(
             req.RideOptionId,
             req.PickupLat, req.PickupLng, req.DropoffLat, req.DropoffLng,
             req.DistanceMiles, req.DurationMinutes, ct);
-
-        var chart = await _pricing.GetChartAsync(ct);
+        var fare = priced.Fare;
 
         var trip = new Trip
         {
@@ -199,14 +221,16 @@ public class TripService : ITripService
             Pin = NewPin(),
 
             Tier = fare.TierId,
-            DistanceMiles = req.DistanceMiles,
-            DurationMinutes = req.DurationMinutes,
+            // What the fare was computed FROM — the clamped route and the chart
+            // that priced it — not the client's raw numbers or a second chart read.
+            DistanceMiles = priced.DistanceMiles,
+            DurationMinutes = priced.DurationMinutes,
             SurgeMultiplier = fare.SurgeMultiplier,
             FareAmount = Gbp(fare.FarePence),
             TipAmount = req.TipAmount < 0 ? 0 : req.TipAmount,
             PlatformFeeAmount = Gbp(fare.PlatformFeePence),
             DriverEarnings = Gbp(fare.DriverEarningsPence),
-            FareChartVersion = chart.Version,
+            FareChartVersion = priced.FareChartVersion,
 
             // Payment: cash is settled in person on completion. Card is only
             // accepted once CustomerPaymentEligibility has passed it above.
@@ -221,8 +245,10 @@ public class TripService : ITripService
             ExpiresAtUtc = TripExpiry.InitialDeadline(DateTime.UtcNow),
         };
 
-        await _trips.AddAsync(trip, ct);
-        await _uow.SaveChangesAsync(ct);
+        // Adds and saves. False is the race the check above can't see: two
+        // bookings landing together, the second refused by 044's unique index.
+        if (!await _trips.TryAddRequestAsync(trip, ct))
+            throw new DomainException(RideInProgressMessage);
 
         // Broadcast the open request to all nearby drivers' boards (best-effort —
         // a broadcast hiccup never fails the booking; drivers also poll the board).
@@ -250,6 +276,11 @@ public class TripService : ITripService
 
     /// <summary>Wrong PINs allowed before verification is refused for this trip.</summary>
     private const int MaxPinAttempts = 5;
+
+    // Each said by a pre-check AND by the race its unique index catches
+    // (044_one_active_trip.sql), so both paths read the same to the user.
+    private const string ActiveTripMessage = "You already have an active trip.";
+    private const string RideInProgressMessage = "You already have a ride in progress.";
 
     public async Task<TripResponse> ExtendAsync(
         Guid customerId, Guid tripId, CancellationToken ct = default)
@@ -292,13 +323,20 @@ public class TripService : ITripService
     {
         await EnsureCanReceiveRequestsAsync(driverId, ct);
         await EnsureCanTakePaymentMethodAsync(driverId, tripId, ct);
+        await EnsureFreeAndRightTierAsync(driverId, tripId, ct);
 
         // Broadcast model — first-come wins. The atomic Requested→DriverAssigned is
-        // the single guard against two drivers grabbing the same trip; false means
-        // someone beat us to it (or it was cancelled).
-        if (!await _trips.TryAssignAsync(tripId, driverId, ct))
+        // the single guard against two drivers grabbing the same trip; Unavailable
+        // means someone beat us to it (or it was cancelled).
+        var claim = await _trips.TryAssignAsync(tripId, driverId, ct);
+        if (claim == TripClaimResult.Unavailable)
             throw new DomainException("This trip has already been taken.");
+        if (claim == TripClaimResult.DriverBusy)
+            throw new DomainException(ActiveTripMessage);
 
+        // The claim refreshed the copy the pre-checks loaded, so this is the trip
+        // as now assigned — what the withdraw, the customer's tripUpdated and the
+        // "driver on the way" push all need to see.
         var trip = await _trips.GetByIdAsync(tripId, ct) ?? throw new NotFoundException("Trip", tripId);
 
         // Drop it off every other nearby driver's board — best-effort, a
@@ -412,7 +450,7 @@ public class TripService : ITripService
         if (!isCustomer && !isDriver)
             throw new NotFoundException("Trip", tripId);
 
-        if (trip.Status is TripStatus.Completed or TripStatus.CancelledByCustomer or TripStatus.CancelledByDriver)
+        if (!TripCancellation.CanCancel(trip.Status, byDriver: isDriver))
             throw new DomainException("This trip can no longer be cancelled.");
 
         // No-show only makes sense for a driver who actually arrived and waited.

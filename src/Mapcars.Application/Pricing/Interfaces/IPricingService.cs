@@ -17,10 +17,11 @@ public interface IPricingService
 
     /// <summary>
     /// Authoritatively price one chosen tier for a route (booking path). Route
-    /// metrics are clamped against a straight-line sanity check first. Throws if
-    /// the tier isn't in the current chart.
+    /// metrics are clamped against a straight-line sanity check first, and the
+    /// result carries the clamped route and the chart version it was priced
+    /// with. Throws if the tier isn't in the current chart.
     /// </summary>
-    Task<FareBreakdown> PriceTierAsync(
+    Task<PricedTier> PriceTierAsync(
         string tierId,
         double pickupLat, double pickupLng,
         double dropoffLat, double dropoffLng,

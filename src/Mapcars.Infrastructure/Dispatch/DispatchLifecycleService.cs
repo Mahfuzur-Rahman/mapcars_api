@@ -235,8 +235,11 @@ public sealed class DispatchLifecycleService : BackgroundService
         // The instance came from an AsNoTracking read, so it still says
         // "Requested". Bring it in line with the row we just wrote before it is
         // mapped for clients — nothing here is tracked, so nothing is persisted.
+        // Every column TryExpireAsync sets, or the broadcast below goes out
+        // still reading PaymentStatus "Pending" for a trip that owes nothing.
         trip.Status = TripStatus.Expired;
         trip.CancelledAtUtc = now;
+        trip.PaymentStatus = PaymentStatus.Voided;
 
         await SafelyAsync(
             () => dispatch.WithdrawAsync(trip, DispatchWithdrawReason.Expired, ct),
