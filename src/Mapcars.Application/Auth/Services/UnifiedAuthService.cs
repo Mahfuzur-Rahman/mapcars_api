@@ -85,7 +85,15 @@ public class UnifiedAuthService(
 
         // 1. Look up customer by google_sub or verified email
         var customer = await customerRepo.FindByGoogleSubAsync(info.Sub, ct);
-        if (customer is null && email is not null)
+        if (customer is not null)
+        {
+            // Found by sub, so Google identifies it whatever its email flag says (a
+            // profile edit resets it). Google vouching for the row's own address
+            // restores the flag; a different one changes nothing.
+            if (SocialAccountLink.ConfirmEmail(customer, email))
+                await uow.SaveChangesAsync(ct);
+        }
+        else if (email is not null)
         {
             customer = await customerRepo.FindByEmailAsync(email, ct);
             if (customer is not null)
@@ -101,7 +109,12 @@ public class UnifiedAuthService(
 
         // 2. Look up driver by google_sub or verified email
         var driver = await driverRepo.FindByGoogleSubAsync(info.Sub, ct);
-        if (driver is null && email is not null)
+        if (driver is not null)
+        {
+            if (SocialAccountLink.ConfirmEmail(driver, email))
+                await uow.SaveChangesAsync(ct);
+        }
+        else if (email is not null)
         {
             driver = await driverRepo.FindByEmailAsync(email, ct);
             if (driver is not null)
@@ -120,7 +133,7 @@ public class UnifiedAuthService(
             // that predates the rename still sends the old word, and rejecting it
             // would lock those users out of the unified sign-in entirely.
             if (UserTypes.IsCustomer(request.LoginAs))
-                return await BuildUserResponseAsync(customer, UserTypes.Customer, ct);
+                return await BuildUserResponseAsync(customer, UserTypes.Customer, ct, signedInByProvider: true);
             if (UserTypes.IsDriver(request.LoginAs))
                 return await BuildUserResponseAsync(driver, UserTypes.Driver, ct);
             return new UnifiedLoginResponse
@@ -145,7 +158,7 @@ public class UnifiedAuthService(
             {
                 throw new UnauthorizedException("This Google account is registered as a Customer. Please sign in as a customer, or register a driver account.");
             }
-            return await BuildUserResponseAsync(customer, UserTypes.Customer, ct);
+            return await BuildUserResponseAsync(customer, UserTypes.Customer, ct, signedInByProvider: true);
         }
 
         // 4. Neither exists
@@ -180,7 +193,7 @@ public class UnifiedAuthService(
             };
             await customerRepo.AddAsync(newCustomer, ct);
             await uow.SaveChangesAsync(ct);
-            return await BuildUserResponseAsync(newCustomer, UserTypes.Customer, ct);
+            return await BuildUserResponseAsync(newCustomer, UserTypes.Customer, ct, signedInByProvider: true);
         }
     }
 
@@ -200,9 +213,15 @@ public class UnifiedAuthService(
         };
     }
 
-    private async Task<UnifiedLoginResponse> BuildUserResponseAsync(Customer customer, string userType, CancellationToken ct)
+    /// <param name="signedInByProvider">
+    /// Google vouched for this sign-in, not an email + password. The verified-email
+    /// gate protects password logins; applying it here would lock out a Google-only
+    /// customer whose profile edit reset the flag, with no password to fall back on.
+    /// </param>
+    private async Task<UnifiedLoginResponse> BuildUserResponseAsync(
+        Customer customer, string userType, CancellationToken ct, bool signedInByProvider = false)
     {
-        if (!customer.IsEmailVerified)
+        if (!customer.IsEmailVerified && !signedInByProvider)
             throw new UnauthorizedException("Please verify your email before logging in.");
         if (!customer.IsActive)
             throw new UnauthorizedException("Your account has been disabled.");

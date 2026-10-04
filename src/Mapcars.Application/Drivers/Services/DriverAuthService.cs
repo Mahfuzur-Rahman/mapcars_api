@@ -87,7 +87,9 @@ public class DriverAuthService(
         var normalized = email.ToLowerInvariant().Trim();
 
         var existing = await repo.FindByEmailAsync(normalized, ct);
-        if (existing is not null && existing.IsEmailVerified)
+        // See CustomerAuthService.SignUpWithEmailAsync: a row tied to a social
+        // identity or a verified phone is never an abandoned sign-up.
+        if (existing is not null && (existing.IsEmailVerified || SocialAccountLink.HasEstablishedIdentity(existing)))
             throw new DomainException(existing.PasswordHash is null
                 // Google-only account — never had a password to overwrite.
                 ? "This email is linked to a Google account. Please continue with Google to sign in."
@@ -109,6 +111,8 @@ public class DriverAuthService(
         {
             existing.PasswordHash = hasher.Hash(password);
             existing.FullName = fullName.Trim();
+            // The old password's holder may not be the one retrying: end their sessions.
+            await refreshTokens.RevokeAllAsync(existing.Id, UserType, ct);
         }
 
         await uow.SaveChangesAsync(ct);
@@ -214,6 +218,11 @@ public class DriverAuthService(
 
             await uow.SaveChangesAsync(ct);
         }
+        // Found by sub: see CustomerAuthService.
+        else if (SocialAccountLink.ConfirmEmail(driver, email))
+        {
+            await uow.SaveChangesAsync(ct);
+        }
 
         return await BuildResponseAsync(driver, ct);
     }
@@ -265,6 +274,11 @@ public class DriverAuthService(
 
             await uow.SaveChangesAsync(ct);
         }
+        // Found by sub: see CustomerAuthService.
+        else if (SocialAccountLink.ConfirmEmail(driver, email))
+        {
+            await uow.SaveChangesAsync(ct);
+        }
 
         return await BuildResponseAsync(driver, ct);
     }
@@ -303,6 +317,11 @@ public class DriverAuthService(
             var existingByEmail = await repo.FindByEmailAsync(normalized, ct);
             if (existingByEmail is not null && existingByEmail.Id != driverId)
                 throw new DomainException("An account with this email already exists.");
+
+            // See CustomerAuthService.UpdateProfileAsync: verification belongs to the
+            // address it was proven on, not to the account.
+            if (!string.Equals(driver.Email, normalized, StringComparison.OrdinalIgnoreCase))
+                driver.IsEmailVerified = false;
             driver.Email = normalized;
         }
 

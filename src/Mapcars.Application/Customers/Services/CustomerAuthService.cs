@@ -78,7 +78,13 @@ public class CustomerAuthService(
         var normalized = email.ToLowerInvariant().Trim();
 
         var existing = await repo.FindByEmailAsync(normalized, ct);
-        if (existing is not null && existing.IsEmailVerified)
+        // An unverified row is normally an abandoned sign-up the owner of the
+        // address may retry. But one tied to a Google/Apple identity or a verified
+        // phone is a live account whose email was merely reset by a profile edit —
+        // overwriting its password would let anyone who knows the address plant
+        // one, which the owner is then told to "verify" into place. Same answer as
+        // for a verified account, so nothing new is revealed.
+        if (existing is not null && (existing.IsEmailVerified || SocialAccountLink.HasEstablishedIdentity(existing)))
             throw new DomainException(existing.PasswordHash is null
                 // Google-only account — never had a password to overwrite.
                 ? "This email is linked to a Google account. Please continue with Google to sign in."
@@ -97,9 +103,11 @@ public class CustomerAuthService(
         }
         else
         {
-            // Re-registration attempt — update password/name
+            // Re-registration attempt — update password/name. Whoever set the old
+            // password may not be the one retrying, so their sessions go too.
             existing.PasswordHash = hasher.Hash(password);
             existing.FullName = fullName.Trim();
+            await refreshTokens.RevokeAllAsync(existing.Id, UserType, ct);
         }
 
         await uow.SaveChangesAsync(ct);
@@ -210,6 +218,12 @@ public class CustomerAuthService(
 
             await uow.SaveChangesAsync(ct);
         }
+        // Found by sub: signs in whatever its email flag says (a profile edit may
+        // have reset it). The provider vouching for the row's own address restores it.
+        else if (SocialAccountLink.ConfirmEmail(customer, email))
+        {
+            await uow.SaveChangesAsync(ct);
+        }
 
         if (!customer.IsActive)
             throw new UnauthorizedException("Your account has been disabled.");
@@ -263,6 +277,12 @@ public class CustomerAuthService(
 
             await uow.SaveChangesAsync(ct);
         }
+        // Found by sub: signs in whatever its email flag says (a profile edit may
+        // have reset it). The provider vouching for the row's own address restores it.
+        else if (SocialAccountLink.ConfirmEmail(customer, email))
+        {
+            await uow.SaveChangesAsync(ct);
+        }
 
         if (!customer.IsActive)
             throw new UnauthorizedException("Your account has been disabled.");
@@ -292,6 +312,14 @@ public class CustomerAuthService(
             var existing = await repo.FindByEmailAsync(normalized, ct);
             if (existing is not null && existing.Id != customerId)
                 throw new DomainException("An account with this email already exists.");
+
+            // A verified flag vouches for the address it was earned on. Carrying it
+            // over to a new address would let an attacker aim a verified account at
+            // a victim's email, so the victim's later Google/Apple sign-in would link
+            // into it with SocialAccountLink's takeover protection skipped. Case is
+            // ignored because lookups lower-case, so "A@x.com" is the same mailbox.
+            if (!string.Equals(customer.Email, normalized, StringComparison.OrdinalIgnoreCase))
+                customer.IsEmailVerified = false;
             customer.Email = normalized;
         }
 
