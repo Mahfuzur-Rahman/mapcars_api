@@ -14,6 +14,10 @@ public class VerificationCode
     // Which provider delivered this OTP: twilio | telnyx | smtp | resend | console
     public string? SentVia { get; set; }
 
-    /// <summary>Wrong guesses against this code so far; burnt at the cap (migration 039).</summary>
+    /// <summary>
+    /// Guesses compared against this code so far, the successful one included
+    /// (migration 039). Only ever bumped by a conditional UPDATE that refuses at
+    /// the cap — see <c>OtpCode.MayAttempt</c>.
+    /// </summary>
     public int AttemptCount { get; set; }
 }

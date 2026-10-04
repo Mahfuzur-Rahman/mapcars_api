@@ -2,6 +2,7 @@ using Mapcars.Application.Admins.Dtos;
 using Mapcars.Application.Admins.Interfaces;
 using Mapcars.Application.Admins.Mapping;
 using Mapcars.Application.Auth.Interfaces;
+using Mapcars.Application.Common;
 using Mapcars.Application.Common.Dtos;
 using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Interfaces;
@@ -58,17 +59,18 @@ public class AdminAuthService(
         var saved = await adminRepo.GetByIdWithRoleAsync(admin.Id, ct) ?? admin;
 
         // Notify the new admin their account is ready. Non-fatal: a mail failure
-        // must not roll back a successful account creation.
+        // must not roll back a successful account creation. Values are encoded:
+        // the body is HTML (see EmailHtml).
         try
         {
             await email.SendAsync(
                 saved.Email,
                 "Your MAP CARS admin account is ready",
                 $"""
-                 Hi {saved.FullName},<br><br>
+                 Hi {EmailHtml.Encode(saved.FullName)},<br><br>
                  An administrator account has been created for you on the MAP CARS admin portal
-                 with the role <strong>{saved.Role?.Name}</strong>.<br><br>
-                 You can sign in with your email address (<strong>{saved.Email}</strong>) and the
+                 with the role <strong>{EmailHtml.Encode(saved.Role?.Name)}</strong>.<br><br>
+                 You can sign in with your email address (<strong>{EmailHtml.Encode(saved.Email)}</strong>) and the
                  password provided to you.<br><br>
                  For security, please change your password after your first sign-in.
                  """,
@@ -121,6 +123,12 @@ public class AdminAuthService(
     {
         var admin = await adminRepo.GetByIdWithRoleAsync(adminId, ct)
             ?? throw new NotFoundException("Admin", adminId);
+
+        // This mints a fresh admin JWT, so it must refuse a disabled admin the way
+        // login and refresh do — otherwise a still-valid access token could be
+        // renewed here indefinitely.
+        if (!admin.IsActive)
+            throw new UnauthorizedException("This account has been disabled.");
 
         var menus = await adminRepo.GetMenusForAdminAsync(admin.Id, admin.RoleId, ct);
 

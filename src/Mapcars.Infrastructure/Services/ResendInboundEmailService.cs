@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Mapcars.Application.Common;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Infrastructure.Options;
 using Microsoft.Extensions.Logging;
@@ -65,9 +66,13 @@ public class ResendInboundEmailService(
         var received = await getResponse.Content.ReadFromJsonAsync<ReceivedEmail>(ct)
             ?? throw new InvalidOperationException($"Resend returned no body for received email {emailId}");
 
+        // The addresses and a plain-text body come from whoever sent the mail, so
+        // they are encoded into our HTML (a From display name can carry markup).
+        // received.Html is the forwarded message itself and passes through as-is:
+        // forwarding it is the point, and encoding it would turn it into source.
         var preamble = $"""
             <p style="color:#888;font-size:12px;margin:0 0 16px">
-              Forwarded from {received.To.FirstOrDefault()} — originally sent by {received.From}
+              Forwarded from {EmailHtml.Encode(received.To.FirstOrDefault())} — originally sent by {EmailHtml.Encode(received.From)}
             </p>
             """;
 
@@ -77,7 +82,7 @@ public class ResendInboundEmailService(
             ["to"] = new[] { _opts.InboundForwardTo },
             ["reply_to"] = received.From,
             ["subject"] = $"Fwd: {received.Subject}",
-            ["html"] = preamble + (received.Html ?? $"<pre>{received.Text}</pre>"),
+            ["html"] = preamble + (received.Html ?? $"<pre>{EmailHtml.Encode(received.Text)}</pre>"),
         };
 
         using var sendRequest = new HttpRequestMessage(HttpMethod.Post, "emails");

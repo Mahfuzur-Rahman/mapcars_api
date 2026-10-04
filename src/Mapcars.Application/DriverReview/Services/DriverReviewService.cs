@@ -1,3 +1,4 @@
+using Mapcars.Application.Common;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Application.Documents.Dtos;
 using Mapcars.Application.Documents.Interfaces;
@@ -364,15 +365,20 @@ public class DriverReviewService : IDriverReviewService
         {
             try
             {
+                // The body is HTML (see EmailHtml): the driver picks their own
+                // name, and the note is admin free text — both are encoded. The
+                // tier is allowlisted at submission but encoded anyway, so this
+                // sink doesn't depend on validation elsewhere.
                 var subject = $"Mapcars — Vehicle Tier Appeal {outcome}";
-                var greeting = !string.IsNullOrWhiteSpace(driver.FullName) ? $"Hi {driver.FullName}," : "Hello,";
+                var tier = EmailHtml.Encode(requestedTierDisplay);
+                var greeting = !string.IsNullOrWhiteSpace(driver.FullName) ? $"Hi {EmailHtml.Encode(driver.FullName)}," : "Hello,";
                 var notesText = !string.IsNullOrWhiteSpace(adminNotes)
-                    ? $"\n\nAdmin note: {adminNotes}"
+                    ? $"\n\nAdmin note: {EmailHtml.Encode(adminNotes)}"
                     : string.Empty;
 
                 var body = status == TierAppealStatus.Approved
-                    ? $"{greeting}\n\nGreat news! Your appeal to upgrade your vehicle to the {requestedTierDisplay} tier has been approved by our operations team.\n\nYour vehicle is now eligible to receive {requestedTierDisplay} trip requests on the Mapcars platform.{notesText}\n\nSafe driving,\nThe Mapcars Team"
-                    : $"{greeting}\n\nYour recent appeal to change your vehicle tier to {requestedTierDisplay} has been reviewed and was not approved at this time.{notesText}\n\nIf you have any questions or have further documentation, feel free to contact support or submit a new appeal with additional details.\n\nBest regards,\nThe Mapcars Team";
+                    ? $"{greeting}\n\nGreat news! Your appeal to upgrade your vehicle to the {tier} tier has been approved by our operations team.\n\nYour vehicle is now eligible to receive {tier} trip requests on the Mapcars platform.{notesText}\n\nSafe driving,\nThe Mapcars Team"
+                    : $"{greeting}\n\nYour recent appeal to change your vehicle tier to {tier} has been reviewed and was not approved at this time.{notesText}\n\nIf you have any questions or have further documentation, feel free to contact support or submit a new appeal with additional details.\n\nBest regards,\nThe Mapcars Team";
 
                 await _email.SendAsync(
                     driver.Email,

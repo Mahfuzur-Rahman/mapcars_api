@@ -1,3 +1,4 @@
+using Mapcars.Application.Common;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Domain.Entities;
 using Mapcars.Infrastructure.Persistence;
@@ -80,8 +81,12 @@ public class OtpService(
         // counted against it — matching on the code meant a guess that missed
         // found nothing to count, and guessing was unlimited for the code's
         // whole lifetime.
+        //
+        // Untracked, and every write below is an ExecuteUpdate: those bypass the
+        // change tracker, so a tracked copy would silently go stale under them.
         var now = DateTime.UtcNow;
         var record = await db.VerificationCodes
+            .AsNoTracking()
             .Where(v =>
                 v.UserType == userType &&
                 v.Provider == provider &&
@@ -97,30 +102,32 @@ public class OtpService(
             return false;
         }
 
-        if (!FixedTimeEquals(record.Code, code))
+        // Spend an attempt BEFORE looking at the guess, and only while under the
+        // cap — one conditional UPDATE, so the database does check-and-increment
+        // atomically. Reading the count, bumping it in memory and saving let a
+        // burst of parallel wrong guesses all read the same count and all get
+        // compared, so the cap could be outrun. Every guess counts, the right one
+        // included: the MaxAttempts-th guess is the last one ever compared, and a
+        // code at the cap stays dead for its remaining life (no burn needed).
+        var granted = await db.VerificationCodes
+            .Where(v => v.Id == record.Id)
+            .Where(OtpCode.MayAttempt(now))
+            .ExecuteUpdateAsync(s => s.SetProperty(v => v.AttemptCount, v => v.AttemptCount + 1), ct);
+
+        if (granted == 0)
         {
-            record.AttemptCount++;
-            if (record.AttemptCount >= IOtpService.MaxAttempts)
-            {
-                record.UsedAt = now; // burnt — the next attempt finds no live code
-                logger.LogWarning("OTP for {Provider}:{Identifier} burnt after {Attempts} wrong attempts",
-                    provider, identifier, record.AttemptCount);
-            }
-            await db.SaveChangesAsync(ct);
+            // At the cap — or used/expired by a parallel request since the read.
+            logger.LogWarning("OTP for {Provider}:{Identifier} refused — {Max} attempts spent or no longer live",
+                provider, identifier, IOtpService.MaxAttempts);
             return false;
         }
 
-        record.UsedAt = now;
-        await db.SaveChangesAsync(ct);
-        return true;
-    }
+        if (!OtpCode.Matches(record.Code, code)) return false;
 
-    private static bool FixedTimeEquals(string expected, string actual)
-    {
-        var diff = expected.Length ^ actual.Length;
-        for (var i = 0; i < expected.Length && i < actual.Length; i++)
-            diff |= expected[i] ^ actual[i];
-        return diff == 0;
+        await db.VerificationCodes
+            .Where(v => v.Id == record.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(v => v.UsedAt, now), ct);
+        return true;
     }
 
     private async Task<string> CreateCodeAsync(
@@ -133,7 +140,7 @@ public class OtpService(
 
         foreach (var o in old) o.UsedAt = DateTime.UtcNow.AddYears(-1); // mark stale
 
-        var code = Random.Shared.Next(100000, 999999).ToString();
+        var code = OtpCode.Generate();
         db.VerificationCodes.Add(new VerificationCode
         {
             Id = Guid.NewGuid(),

@@ -1,7 +1,15 @@
+using Mapcars.Application.Common;
+
 namespace Mapcars.Infrastructure.Services;
 
 internal static class EmailTemplate
 {
+    /// <summary>
+    /// <paramref name="content"/> is HTML, inserted as-is — callers encode what
+    /// they interpolate into it (<see cref="EmailHtml"/>). <paramref name="title"/>
+    /// is the subject, a plain-text header, so it is encoded here where it lands in
+    /// the HTML: a contact-form subject carries the sender's name.
+    /// </summary>
     internal static string Wrap(string title, string content) => $"""
         <!DOCTYPE html>
         <html lang="en">
@@ -17,7 +25,7 @@ internal static class EmailTemplate
                 </tr>
                 <tr>
                   <td style="padding:32px">
-                    <h2 style="margin:0 0 16px;color:#1a1a1a;font-size:20px">{title}</h2>
+                    <h2 style="margin:0 0 16px;color:#1a1a1a;font-size:20px">{EmailHtml.Encode(title)}</h2>
                     <div style="color:#444;font-size:15px;line-height:1.6">{content}</div>
                   </td>
                 </tr>

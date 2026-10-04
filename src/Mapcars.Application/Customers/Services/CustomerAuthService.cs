@@ -1,4 +1,5 @@
 using Mapcars.Application.Admins.Interfaces;
+using Mapcars.Application.Auth;
 using Mapcars.Application.Auth.Interfaces;
 using Mapcars.Application.Common.Dtos;
 using Mapcars.Application.Common.Exceptions;
@@ -182,9 +183,10 @@ public class CustomerAuthService(
             if (customer is not null)
             {
                 // Link Google to the existing account — `email` is non-null
-                // only when Google vouched for it, so this is safe.
+                // only when Google vouched for it. Claiming first strips any
+                // password/sessions an unverified pre-registration left behind.
+                await SocialAccountLink.ClaimAsync(customer, refreshTokens, ct);
                 customer.GoogleSub = info.Sub;
-                customer.IsEmailVerified = true;
             }
             else
             {
@@ -239,8 +241,8 @@ public class CustomerAuthService(
 
             if (customer is not null)
             {
+                await SocialAccountLink.ClaimAsync(customer, refreshTokens, ct);
                 customer.AppleSub = info.Sub;
-                customer.IsEmailVerified = true;
             }
             else
             {

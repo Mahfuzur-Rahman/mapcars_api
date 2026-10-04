@@ -1,4 +1,5 @@
 using Mapcars.Application.Admins.Interfaces;
+using Mapcars.Application.Auth;
 using Mapcars.Application.Auth.Interfaces;
 using Mapcars.Application.Common.Dtos;
 using Mapcars.Application.Common.Exceptions;
@@ -186,9 +187,11 @@ public class DriverAuthService(
 
             if (driver is not null)
             {
-                // `email` is non-null only when Google vouched for it.
+                // `email` is non-null only when Google vouched for it. Claiming
+                // first strips any password/sessions an unverified
+                // pre-registration left behind.
+                await SocialAccountLink.ClaimAsync(driver, refreshTokens, ct);
                 driver.GoogleSub = info.Sub;
-                driver.IsEmailVerified = true;
             }
             else
             {
@@ -238,8 +241,8 @@ public class DriverAuthService(
 
             if (driver is not null)
             {
+                await SocialAccountLink.ClaimAsync(driver, refreshTokens, ct);
                 driver.AppleSub = info.Sub;
-                driver.IsEmailVerified = true;
             }
             else
             {

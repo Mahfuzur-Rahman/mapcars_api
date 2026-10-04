@@ -83,6 +83,15 @@ public class RefreshTokenService : IRefreshTokenService
         // Re-check the account on every refresh, not just at login. This is the
         // point where a deleted account stops being able to renew itself.
         var accessToken = await MintAccessTokenAsync(existing.UserId, existing.UserType, ct);
+        if (accessToken is null)
+        {
+            // The account exists but may no longer sign in (a disabled admin).
+            // Refused exactly like a dead token, and the presented token dies here
+            // so it can't be retried.
+            existing.RevokedAtUtc = DateTime.UtcNow;
+            await _uow.SaveChangesAsync(ct);
+            throw new UnauthorizedException("Your session has expired. Please sign in again.");
+        }
 
         // Rotate: the presented token dies, its successor takes over.
         var replacement = NewToken();
@@ -140,9 +149,10 @@ public class RefreshTokenService : IRefreshTokenService
     /// <summary>
     /// Mints the access token for whichever kind of account this is. Loading the
     /// account also proves it still exists — a refresh token outliving its user
-    /// must not keep minting valid JWTs.
+    /// must not keep minting valid JWTs. Null when the account exists but may no
+    /// longer sign in.
     /// </summary>
-    private async Task<string> MintAccessTokenAsync(Guid userId, string userType, CancellationToken ct)
+    private async Task<string?> MintAccessTokenAsync(Guid userId, string userType, CancellationToken ct)
     {
         // if/else rather than a switch: UserTypes.Customer and .LegacyCustomer hold
         // the same string until the rename cutover, and duplicate case labels are a
@@ -170,7 +180,10 @@ public class RefreshTokenService : IRefreshTokenService
             // portal authorises off it.
             var admin = await _admins.GetByIdWithRoleAsync(userId, ct)
                 ?? throw new UnauthorizedException("This account is no longer available.");
-            return _jwt.GenerateToken(admin);
+
+            // Login refuses a disabled admin; so must refresh, or disabling one
+            // only takes effect when their refresh token finally expires.
+            return admin.IsActive ? _jwt.GenerateToken(admin) : null;
         }
 
         throw new UnauthorizedException("Your session has expired. Please sign in again.");
