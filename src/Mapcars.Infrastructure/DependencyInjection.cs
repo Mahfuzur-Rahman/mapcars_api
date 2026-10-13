@@ -4,6 +4,7 @@ using Google.Apis.Auth.OAuth2;
 using Mapcars.Application.Admins.Interfaces;
 using Mapcars.Application.Auth.Interfaces;
 using Mapcars.Application.Common.Interfaces;
+using Mapcars.Application.Common.Phones;
 using Mapcars.Application.Customers.Interfaces;
 using Mapcars.Application.Documents.Interfaces;
 using Mapcars.Application.Drivers.Interfaces;
@@ -222,6 +223,15 @@ public static class DependencyInjection
                     sp.GetRequiredService<ILogger<LoggingEmailService>>()));
                 break;
         }
+
+        // Who may sign in by SMS, the daily cost cap, and the reserved test
+        // numbers. Built eagerly, here at startup: PhoneLoginPolicy validates
+        // itself, so a real number configured as a "test" number stops the API
+        // from booting instead of quietly becoming a backdoor.
+        services.AddSingleton(new PhoneLoginPolicy(
+            configuration.GetSection("Sms:AllowedRegions").Get<string[]>() is { Length: > 0 } regions ? regions : ["GB"],
+            configuration.GetValue<int?>("Sms:DailySendCap") ?? 500,
+            configuration.GetSection("Sms:TestNumbers").Get<List<TestPhoneNumber>>() ?? []));
 
         // SMS — driven by Sms:Provider ("Twilio" | "Telnyx"); falls back to console stub
         switch (configuration["Sms:Provider"]?.Trim().ToLowerInvariant())

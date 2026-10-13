@@ -5,6 +5,7 @@ using Mapcars.Application.Common.Dtos;
 using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Files;
 using Mapcars.Application.Common.Interfaces;
+using Mapcars.Application.Common.Phones;
 using Mapcars.Application.Customers.Dtos;
 using Mapcars.Application.Customers.Interfaces;
 using Mapcars.Domain.Constants;
@@ -23,31 +24,37 @@ public class CustomerAuthService(
     IRefreshTokenService refreshTokens,
     IFileStorageService storage,
     IAppEnvironment env,
-    IUnitOfWork uow) : ICustomerAuthService
+    IUnitOfWork uow,
+    // Optional so every positional construction in the tests still compiles.
+    // DI always supplies the configured one; null falls back to UK-only.
+    PhoneLoginPolicy? phonePolicy = null) : ICustomerAuthService
 {
+    private readonly PhoneLoginPolicy phones = phonePolicy ?? PhoneLoginPolicy.Default;
+
     private const string UserType = UserTypes.Customer;
 
     // The OTP is only ever revealed to the caller in local Development (a
     // convenience so devs can log in without a live SMS/email provider). In
     // Production it is null — never ship the code that authenticates the user.
-    private OtpSentResponse OtpSent(string message, string code) => new()
+    private OtpSentResponse OtpSent(string message, string code, int? resendAfterSeconds = null) => new()
     {
         Message = message,
         DevCode = env.IsDevelopment ? code : null,
+        ResendAfterSeconds = resendAfterSeconds,
     };
 
     // ── Phone ─────────────────────────────────────────────────────────────────
 
     public async Task<OtpSentResponse> SendPhoneOtpAsync(string phone, CancellationToken ct = default)
     {
-        var normalized = NormalizePhone(phone);
+        var normalized = phones.NormalizeLoginPhone(phone);
         var devCode = await otpService.CreateAndSendPhoneOtpAsync(UserType, normalized, ct);
-        return OtpSent($"Verification code sent to {Mask(normalized)}", devCode);
+        return OtpSent($"Verification code sent to {Mask(normalized)}", devCode, resendAfterSeconds: 60);
     }
 
     public async Task<AuthResponse> VerifyPhoneOtpAsync(string phone, string code, CancellationToken ct = default)
     {
-        var normalized = NormalizePhone(phone);
+        var normalized = phones.NormalizeLoginPhone(phone);
         if (!await otpService.VerifyAsync(UserType, "phone", normalized, code, ct))
             throw new UnauthorizedException("Invalid or expired code.");
 
@@ -328,7 +335,7 @@ public class CustomerAuthService(
         customer.EmergencyContactName = string.IsNullOrWhiteSpace(request.EmergencyContactName)
             ? customer.EmergencyContactName : request.EmergencyContactName.Trim();
         customer.EmergencyContactPhone = string.IsNullOrWhiteSpace(request.EmergencyContactPhone)
-            ? customer.EmergencyContactPhone : request.EmergencyContactPhone.Trim();
+            ? customer.EmergencyContactPhone : PhoneFormat.NormalizeAny(request.EmergencyContactPhone);
         if (request.MarketingConsent.HasValue)
             customer.MarketingConsent = request.MarketingConsent.Value;
         customer.AccessibilityNeeds = string.IsNullOrWhiteSpace(request.AccessibilityNeeds)
@@ -422,8 +429,6 @@ public class CustomerAuthService(
         IsPhoneVerified = customer.IsPhoneVerified,
     };
 
-    private static string NormalizePhone(string phone)
-        => phone.Trim().Replace(" ", "").Replace("-", "");
 
     private static string Mask(string s) => s.Length > 4
         ? s[..2] + new string('*', s.Length - 4) + s[^2..]

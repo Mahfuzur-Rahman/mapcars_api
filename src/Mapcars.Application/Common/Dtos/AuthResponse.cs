@@ -31,4 +31,10 @@ public class OtpSentResponse
     /// returning it in Production would let anyone take over any account.
     /// </summary>
     public string? DevCode { get; set; }
+
+    /// <summary>
+    /// Seconds until another code may be requested for this number. Set on phone
+    /// sends only; the clients run their "Resend code in 0:42" countdown from it.
+    /// </summary>
+    public int? ResendAfterSeconds { get; set; }
 }

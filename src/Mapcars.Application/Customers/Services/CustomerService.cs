@@ -1,5 +1,6 @@
 using FluentValidation.Results;
 using Mapcars.Application.Common.Interfaces;
+using Mapcars.Application.Common.Phones;
 using Mapcars.Application.Customers.Dtos;
 using Mapcars.Application.Customers.Interfaces;
 using Mapcars.Application.Customers.Mapping;
@@ -39,7 +40,7 @@ public class CustomerService : ICustomerService
         {
             FullName = request.FullName,
             Email = request.Email,
-            PhoneNumber = request.PhoneNumber
+            PhoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : PhoneFormat.NormalizeAny(request.PhoneNumber)
         };
 
         await _customers.AddAsync(customer, ct);
