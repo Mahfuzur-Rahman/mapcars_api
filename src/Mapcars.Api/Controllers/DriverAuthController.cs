@@ -81,6 +81,26 @@ public class DriverAuthController(IDriverAuthService authService) : ControllerBa
         return NoContent();
     }
 
+    /// <summary>Emails a verification code to the unverified email on the driver's profile.</summary>
+    [HttpPost("me/email/send-code")]
+    [Authorize]
+    [EnableRateLimiting("otp")]
+    public async Task<IActionResult> SendProfileEmailCode(CancellationToken ct)
+    {
+        if (!TryGetDriverId(out var driverId)) return Unauthorized();
+        return Ok(await authService.SendProfileEmailCodeAsync(driverId, ct));
+    }
+
+    /// <summary>Verifies the driver's profile email with the emailed code; returns the updated profile.</summary>
+    [HttpPost("me/email/verify")]
+    [Authorize]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> VerifyProfileEmail([FromBody] VerifyProfileEmailRequest req, CancellationToken ct)
+    {
+        if (!TryGetDriverId(out var driverId)) return Unauthorized();
+        return Ok(await authService.VerifyProfileEmailAsync(driverId, req.Code, ct));
+    }
+
     /// <summary>Toggle the authenticated driver's online/offline availability.</summary>
     [HttpPatch("me/availability")]
     [Authorize]

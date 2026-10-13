@@ -65,15 +65,15 @@ public class AdminAuthService(
         {
             await email.SendAsync(
                 saved.Email,
-                "Your MAP CARS admin account is ready",
-                $"""
-                 Hi {EmailHtml.Encode(saved.FullName)},<br><br>
-                 An administrator account has been created for you on the MAP CARS admin portal
-                 with the role <strong>{EmailHtml.Encode(saved.Role?.Name)}</strong>.<br><br>
-                 You can sign in with your email address (<strong>{EmailHtml.Encode(saved.Email)}</strong>) and the
-                 password provided to you.<br><br>
-                 For security, please change your password after your first sign-in.
-                 """,
+                "Your MapCars admin account is ready",
+                EmailHtml.Paragraph($"Hi {EmailHtml.Encode(saved.FullName)},") +
+                EmailHtml.Paragraph(
+                    "An administrator account has been created for you on the MapCars admin portal " +
+                    $"with the role <strong>{EmailHtml.Encode(saved.Role?.Name)}</strong>.") +
+                EmailHtml.Paragraph(
+                    $"Sign in with your email address (<strong>{EmailHtml.Encode(saved.Email)}</strong>) " +
+                    "and the password provided to you.") +
+                EmailHtml.Muted("For security, please change your password after your first sign-in."),
                 ct: ct);
         }
         catch (Exception ex)

@@ -338,6 +338,44 @@ public class CustomerAuthService(
         return BuildProfileResponse(customer);
     }
 
+    // ── Profile email verification ────────────────────────────────────────────
+    // A phone sign-up adds an email on the profile, and it starts unverified (see
+    // UpdateProfileAsync). Trip emails only go to a verified address, so a
+    // mistyped one never receives somebody's pickup and drop-off. The code is
+    // checked against the address already on the profile — the request names none.
+    // Same "email" code as sign-up: it is for this address, which is the point.
+
+    public async Task<OtpSentResponse> SendProfileEmailCodeAsync(Guid customerId, CancellationToken ct = default)
+    {
+        var customer = await repo.GetByIdAsync(customerId, ct)
+            ?? throw new NotFoundException("Customer", customerId);
+        if (string.IsNullOrWhiteSpace(customer.Email))
+            throw new DomainException("Add an email address to your profile first.");
+        if (customer.IsEmailVerified)
+            throw new DomainException("Your email address is already verified.");
+
+        var devCode = await otpService.CreateAndSendEmailOtpAsync(UserType, customer.Email, ct);
+        return OtpSent($"Verification code sent to {Mask(customer.Email)}", devCode);
+    }
+
+    public async Task<CustomerProfileResponse> VerifyProfileEmailAsync(Guid customerId, string code, CancellationToken ct = default)
+    {
+        var customer = await repo.GetByIdAsync(customerId, ct)
+            ?? throw new NotFoundException("Customer", customerId);
+        if (string.IsNullOrWhiteSpace(customer.Email))
+            throw new DomainException("Add an email address to your profile first.");
+        if (customer.IsEmailVerified) return BuildProfileResponse(customer);
+
+        // A DomainException (400), not Unauthorized: the caller IS signed in, and a
+        // 401 would send the apps' session refresher after a wrong code.
+        if (!await otpService.VerifyAsync(UserType, "email", customer.Email, code, ct))
+            throw new DomainException("That code is incorrect or has expired. Request a new one and try again.");
+
+        customer.IsEmailVerified = true;
+        await uow.SaveChangesAsync(ct);
+        return BuildProfileResponse(customer);
+    }
+
     public async Task ChangePasswordAsync(Guid customerId, ChangePasswordRequest request, CancellationToken ct = default)
     {
         var customer = await repo.GetByIdAsync(customerId, ct)
@@ -387,6 +425,7 @@ public class CustomerAuthService(
         CustomerId = customer.Id,
         FullName = customer.FullName,
         Email = customer.Email,
+        IsEmailVerified = customer.IsEmailVerified,
         Phone = customer.PhoneNumber,
         EmergencyContactName = customer.EmergencyContactName,
         EmergencyContactPhone = customer.EmergencyContactPhone,

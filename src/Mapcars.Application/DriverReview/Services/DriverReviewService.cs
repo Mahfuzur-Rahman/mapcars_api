@@ -373,12 +373,19 @@ public class DriverReviewService : IDriverReviewService
                 var tier = EmailHtml.Encode(requestedTierDisplay);
                 var greeting = !string.IsNullOrWhiteSpace(driver.FullName) ? $"Hi {EmailHtml.Encode(driver.FullName)}," : "Hello,";
                 var notesText = !string.IsNullOrWhiteSpace(adminNotes)
-                    ? $"\n\nAdmin note: {EmailHtml.Encode(adminNotes)}"
+                    ? EmailHtml.Paragraph($"<strong>Note from our team:</strong> {EmailHtml.Encode(adminNotes)}")
                     : string.Empty;
 
-                var body = status == TierAppealStatus.Approved
-                    ? $"{greeting}\n\nGreat news! Your appeal to upgrade your vehicle to the {tier} tier has been approved by our operations team.\n\nYour vehicle is now eligible to receive {tier} trip requests on the Mapcars platform.{notesText}\n\nSafe driving,\nThe Mapcars Team"
-                    : $"{greeting}\n\nYour recent appeal to change your vehicle tier to {tier} has been reviewed and was not approved at this time.{notesText}\n\nIf you have any questions or have further documentation, feel free to contact support or submit a new appeal with additional details.\n\nBest regards,\nThe Mapcars Team";
+                // Paragraph blocks, not "\n": the body is HTML, where a newline is just a space.
+                var body = EmailHtml.Paragraph(greeting) + (status == TierAppealStatus.Approved
+                    ? EmailHtml.Paragraph($"Great news! Your appeal to upgrade your vehicle to the <strong>{tier}</strong> tier has been approved by our operations team.") +
+                      EmailHtml.Paragraph($"Your vehicle is now eligible to receive {tier} trip requests on the Mapcars platform.") +
+                      notesText +
+                      EmailHtml.Paragraph("Safe driving,<br>The Mapcars Team")
+                    : EmailHtml.Paragraph($"Your recent appeal to change your vehicle tier to <strong>{tier}</strong> has been reviewed and was not approved at this time.") +
+                      notesText +
+                      EmailHtml.Paragraph("If you have any questions or further documentation, contact support or submit a new appeal with additional details.") +
+                      EmailHtml.Paragraph("Best regards,<br>The Mapcars Team"));
 
                 await _email.SendAsync(
                     driver.Email,

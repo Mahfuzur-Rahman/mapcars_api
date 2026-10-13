@@ -48,6 +48,7 @@ public class TripService : ITripService
     private readonly IPushService _push;
     private readonly ISettingsStore _settings;
     private readonly ICustomerPaymentMethodRepository _cards;
+    private readonly ITripEmailQueue _emails;
 
     public TripService(
         ITripRepository trips,
@@ -60,7 +61,8 @@ public class TripService : ITripService
         IDispatchService dispatch,
         IPushService push,
         ISettingsStore settings,
-        ICustomerPaymentMethodRepository cards)
+        ICustomerPaymentMethodRepository cards,
+        ITripEmailQueue emails)
     {
         _trips = trips;
         _customers = customers;
@@ -73,6 +75,7 @@ public class TripService : ITripService
         _push = push;
         _settings = settings;
         _cards = cards;
+        _emails = emails;
     }
 
     public async Task<IReadOnlyList<TripResponse>> ListForCustomerAsync(Guid customerId, CancellationToken ct = default)
@@ -431,7 +434,11 @@ public class TripService : ITripService
         }
 
         await _uow.SaveChangesAsync(ct);
-        return await NotifiedAsync(trip, callerIsDriver: true, ct);
+        var response = await NotifiedAsync(trip, callerIsDriver: true, ct);
+
+        // Receipt + earnings summary, sent in the background once the trip is saved.
+        _emails.EnqueueCompleted(trip.Id);
+        return response;
     }
 
     /// <summary>Maps the request's payment-method string to the enum (defaults to cash).</summary>

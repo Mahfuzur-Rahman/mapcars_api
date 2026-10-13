@@ -128,6 +128,12 @@ public static class DependencyInjection
         services.AddHostedService<DispatchLifecycleService>();
         services.AddHostedService<DriverStatementBuildService>();
 
+        // Trip-completion emails: one instance is both the queue TripService
+        // writes to and the hosted worker that drains it.
+        services.AddSingleton<TripEmailQueue>();
+        services.AddSingleton<ITripEmailQueue>(sp => sp.GetRequiredService<TripEmailQueue>());
+        services.AddHostedService(sp => sp.GetRequiredService<TripEmailQueue>());
+
         // Security
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IJwtService, JwtService>();

@@ -347,6 +347,44 @@ public class DriverAuthService(
         return await BuildProfileAsync(driver, ct);
     }
 
+    // ── Profile email verification ────────────────────────────────────────────
+    // A phone sign-up adds an email on the profile, and it starts unverified (see
+    // UpdateProfileAsync). Trip emails only go to a verified address, so a
+    // mistyped one never receives somebody's pickup and drop-off. The code is
+    // checked against the address already on the profile — the request names none.
+    // Same "email" code as sign-up: it is for this address, which is the point.
+
+    public async Task<OtpSentResponse> SendProfileEmailCodeAsync(Guid driverId, CancellationToken ct = default)
+    {
+        var driver = await repo.GetByIdAsync(driverId, ct)
+            ?? throw new NotFoundException("Driver", driverId);
+        if (string.IsNullOrWhiteSpace(driver.Email))
+            throw new DomainException("Add an email address to your profile first.");
+        if (driver.IsEmailVerified)
+            throw new DomainException("Your email address is already verified.");
+
+        var devCode = await otpService.CreateAndSendEmailOtpAsync(UserType, driver.Email, ct);
+        return OtpSent($"Verification code sent to {Mask(driver.Email)}", devCode);
+    }
+
+    public async Task<DriverProfileResponse> VerifyProfileEmailAsync(Guid driverId, string code, CancellationToken ct = default)
+    {
+        var driver = await repo.GetByIdAsync(driverId, ct)
+            ?? throw new NotFoundException("Driver", driverId);
+        if (string.IsNullOrWhiteSpace(driver.Email))
+            throw new DomainException("Add an email address to your profile first.");
+        if (driver.IsEmailVerified) return BuildProfileResponse(driver);
+
+        // A DomainException (400), not Unauthorized: the caller IS signed in, and a
+        // 401 would send the apps' session refresher after a wrong code.
+        if (!await otpService.VerifyAsync(UserType, "email", driver.Email, code, ct))
+            throw new DomainException("That code is incorrect or has expired. Request a new one and try again.");
+
+        driver.IsEmailVerified = true;
+        await uow.SaveChangesAsync(ct);
+        return BuildProfileResponse(driver);
+    }
+
     public async Task ChangePasswordAsync(Guid driverId, ChangePasswordRequest request, CancellationToken ct = default)
     {
         var driver = await repo.GetByIdAsync(driverId, ct)
@@ -435,6 +473,7 @@ public class DriverAuthService(
         LastName = driver.LastName,
         FullName = driver.FullName,
         Email = driver.Email,
+        IsEmailVerified = driver.IsEmailVerified,
         Phone = driver.PhoneNumber,
         DateOfBirth = driver.DateOfBirth,
         Address = driver.Address,

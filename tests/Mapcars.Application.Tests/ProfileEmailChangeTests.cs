@@ -1,3 +1,4 @@
+using Mapcars.Application.Common.Interfaces;
 using System.Linq.Expressions;
 using Mapcars.Application.Customers.Dtos;
 using Mapcars.Application.Customers.Interfaces;
@@ -126,6 +127,79 @@ public class ProfileEmailChangeTests
         Assert.True(driver.IsEmailVerified);
     }
 
+    // ── Verifying a profile email (phone sign-ups) ─────────────────────────────
+    // A phone sign-up adds an email later; it only receives trip emails once
+    // verified, and the code must prove THIS address — the one on the profile.
+
+    private const string RightCode = "123456";
+
+    private static (CustomerAuthService Service, Customer Customer, ProfileOtp Otp) PhoneCustomer(string? email)
+    {
+        var customer = new Customer { PhoneNumber = "+447700900000", IsPhoneVerified = true, Email = email, IsActive = true };
+        var otp = new ProfileOtp();
+        var service = new CustomerAuthService(
+            new ProfileCustomerRepo(customer, null), null!, otp, null!, null!, null!, null!, null!, new ProdEnv(), new FakeUnitOfWork());
+        return (service, customer, otp);
+    }
+
+    [Fact]
+    public async Task Customer_send_code_goes_to_the_email_on_the_profile()
+    {
+        var (service, customer, otp) = PhoneCustomer(Changed);
+
+        var sent = await service.SendProfileEmailCodeAsync(customer.Id);
+
+        Assert.Equal(("customer", Changed), Assert.Single(otp.Sent));
+        Assert.Null(sent.DevCode); // never leaks outside Development
+    }
+
+    [Fact]
+    public async Task Customer_send_code_without_an_email_is_rejected()
+    {
+        var (service, customer, otp) = PhoneCustomer(null);
+
+        await Assert.ThrowsAsync<DomainException>(() => service.SendProfileEmailCodeAsync(customer.Id));
+        Assert.Empty(otp.Sent);
+    }
+
+    [Fact]
+    public async Task Customer_right_code_verifies_the_profile_email()
+    {
+        var (service, customer, otp) = PhoneCustomer(Changed);
+
+        var profile = await service.VerifyProfileEmailAsync(customer.Id, RightCode);
+
+        Assert.True(customer.IsEmailVerified);
+        Assert.True(profile.IsEmailVerified);
+        Assert.Equal(("customer", "email", Changed), Assert.Single(otp.Checked));
+    }
+
+    [Fact]
+    public async Task Customer_wrong_code_is_a_400_not_a_401_and_leaves_it_unverified()
+    {
+        var (service, customer, _) = PhoneCustomer(Changed);
+
+        // DomainException maps to 400. A 401 would make the apps' session
+        // refresher treat a typo as an expired session.
+        await Assert.ThrowsAsync<DomainException>(() => service.VerifyProfileEmailAsync(customer.Id, "000000"));
+        Assert.False(customer.IsEmailVerified);
+    }
+
+    [Fact]
+    public async Task Driver_right_code_verifies_the_profile_email()
+    {
+        var driver = new Driver { PhoneNumber = "+447700900001", IsPhoneVerified = true, Email = Changed };
+        var otp = new ProfileOtp();
+        var service = new DriverAuthService(
+            new ProfileDriverRepo(driver, null), null!, otp, null!, null!, null!, null!, null!, new ProdEnv(), null!,
+            new DefaultSettings(), new FakeUnitOfWork());
+
+        await service.VerifyProfileEmailAsync(driver.Id, RightCode);
+
+        Assert.True(driver.IsEmailVerified);
+        Assert.Equal(("driver", "email", Changed), Assert.Single(otp.Checked));
+    }
+
     // ── Doubles (only what UpdateProfileAsync reaches) ────────────────────────
 
     /// <summary>Looks up by id (the caller) and by email (the caller, or one other account).</summary>
@@ -179,4 +253,26 @@ public class ProfileEmailChangeTests
         public Task<T> SetAsync<T>(string key, T value, Guid? updatedByAdminId = null, CancellationToken ct = default)
             where T : class, new() => throw new NotSupportedException();
     }
+
+    /// <summary>Accepts only <see cref="RightCode"/>; records what was sent and checked.</summary>
+    private sealed class ProfileOtp : IOtpService
+    {
+        public List<(string UserType, string Email)> Sent { get; } = [];
+        public List<(string UserType, string Provider, string Identifier)> Checked { get; } = [];
+
+        public Task<string> CreateAndSendEmailOtpAsync(string userType, string email, CancellationToken ct = default)
+        {
+            Sent.Add((userType, email));
+            return Task.FromResult(RightCode);
+        }
+        public Task<bool> VerifyAsync(string userType, string provider, string identifier, string code, CancellationToken ct = default)
+        {
+            Checked.Add((userType, provider, identifier));
+            return Task.FromResult(code == RightCode);
+        }
+        public Task<string> CreateAndSendPhoneOtpAsync(string userType, string phone, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task CreateAndSendPasswordResetAsync(string userType, string email, CancellationToken ct = default) => throw new NotSupportedException();
+    }
+
+    private sealed class ProdEnv : IAppEnvironment { public bool IsDevelopment => false; }
 }

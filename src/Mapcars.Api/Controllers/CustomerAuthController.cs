@@ -96,6 +96,30 @@ public class CustomerAuthController(ICustomerAuthService authService) : Controll
         return NoContent();
     }
 
+    /// <summary>Emails a verification code to the unverified email on the customer's profile.</summary>
+    [HttpPost("me/email/send-code")]
+    [Authorize]
+    [EnableRateLimiting("otp")]
+    public async Task<IActionResult> SendProfileEmailCode(CancellationToken ct)
+    {
+        var customerIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(customerIdStr, out var customerId))
+            return Unauthorized();
+        return Ok(await authService.SendProfileEmailCodeAsync(customerId, ct));
+    }
+
+    /// <summary>Verifies the customer's profile email with the emailed code; returns the updated profile.</summary>
+    [HttpPost("me/email/verify")]
+    [Authorize]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> VerifyProfileEmail([FromBody] VerifyProfileEmailRequest req, CancellationToken ct)
+    {
+        var customerIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(customerIdStr, out var customerId))
+            return Unauthorized();
+        return Ok(await authService.VerifyProfileEmailAsync(customerId, req.Code, ct));
+    }
+
     /// <summary>Upload/replace the authenticated customer's profile picture.</summary>
     [HttpPut("me/picture")]
     [Authorize]

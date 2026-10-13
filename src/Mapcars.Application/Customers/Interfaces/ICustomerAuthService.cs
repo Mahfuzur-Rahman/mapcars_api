@@ -32,6 +32,11 @@ public interface ICustomerAuthService
     Task<CustomerProfileResponse> GetProfileAsync(Guid customerId, CancellationToken ct = default);
     Task<CustomerProfileResponse> UpdateProfileAsync(Guid customerId, UpdateProfileRequest request, CancellationToken ct = default);
 
+    /// <summary>Emails a code to the unverified address on the profile (phone sign-ups add one later).</summary>
+    Task<OtpSentResponse> SendProfileEmailCodeAsync(Guid customerId, CancellationToken ct = default);
+    /// <summary>Marks the profile email verified. Only verified addresses get trip receipts.</summary>
+    Task<CustomerProfileResponse> VerifyProfileEmailAsync(Guid customerId, string code, CancellationToken ct = default);
+
     Task<CustomerProfileResponse> UploadProfilePictureAsync(
         Guid customerId, Stream content, string fileName, string contentType, long fileSize, CancellationToken ct = default);
     Task<(Stream Content, string ContentType)?> GetProfilePictureAsync(Guid customerId, CancellationToken ct = default);

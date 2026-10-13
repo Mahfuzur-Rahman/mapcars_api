@@ -43,8 +43,12 @@ public class OtpService(
         {
             await email.SendAsync(
                 emailAddr,
-                "Your MAP CARS verification code",
-                $"Your verification code is <strong>{code}</strong>. It expires in {EmailExpiryMinutes} minutes.",
+                "Your MapCars verification code",
+                EmailHtml.Paragraph("Enter this code to verify your email address:") +
+                EmailHtml.Code(code) +
+                EmailHtml.Muted(
+                    $"It expires in {EmailExpiryMinutes} minutes. If you didn't ask for this code, " +
+                    "you can safely ignore this email."),
                 ct: ct);
         }
         catch (Exception ex)
@@ -62,10 +66,12 @@ public class OtpService(
         {
             await email.SendAsync(
                 emailAddr,
-                "Reset your MAP CARS password",
-                $"Your password reset code is <strong>{code}</strong>. It expires in {ResetExpiryMinutes} minutes." +
-                "<br><br>If you didn't ask to reset your password, you can ignore this email — " +
-                "your password hasn't changed.",
+                "Reset your MapCars password",
+                EmailHtml.Paragraph("Use this code to reset your password:") +
+                EmailHtml.Code(code) +
+                EmailHtml.Muted(
+                    $"It expires in {ResetExpiryMinutes} minutes. If you didn't ask to reset your password, " +
+                    "you can ignore this email — your password hasn't changed."),
                 ct: ct);
         }
         catch (Exception ex)

@@ -17,6 +17,13 @@ public class CustomerProfileResponse
 
     public string? FullName { get; set; }
     public string? Email { get; set; }
+
+    /// <summary>
+    /// Trip receipts are only emailed to a verified address. False for an email a
+    /// phone sign-up added on the profile until they confirm it
+    /// (<c>me/email/send-code</c> → <c>me/email/verify</c>).
+    /// </summary>
+    public bool IsEmailVerified { get; set; }
     public string? Phone { get; set; }
     public string? EmergencyContactName { get; set; }
     public string? EmergencyContactPhone { get; set; }

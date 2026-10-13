@@ -31,6 +31,10 @@ public interface IDriverAuthService
     // Profile
     Task<DriverProfileResponse> GetProfileAsync(Guid driverId, CancellationToken ct = default);
     Task<DriverProfileResponse> UpdateProfileAsync(Guid driverId, UpdateDriverProfileRequest req, CancellationToken ct = default);
+    /// <summary>Emails a code to the unverified address on the profile (phone sign-ups add one later).</summary>
+    Task<OtpSentResponse> SendProfileEmailCodeAsync(Guid driverId, CancellationToken ct = default);
+    /// <summary>Marks the profile email verified. Only verified addresses get trip summaries.</summary>
+    Task<DriverProfileResponse> VerifyProfileEmailAsync(Guid driverId, string code, CancellationToken ct = default);
     Task<DriverProfileResponse> UploadProfilePictureAsync(Guid driverId, Stream content, string fileName, string contentType, long fileSize, CancellationToken ct = default);
     Task<(Stream Content, string ContentType)?> GetProfilePictureAsync(Guid driverId, CancellationToken ct = default);
     Task<DriverProfileResponse> SetAvailabilityAsync(Guid driverId, bool isOnline, CancellationToken ct = default);
