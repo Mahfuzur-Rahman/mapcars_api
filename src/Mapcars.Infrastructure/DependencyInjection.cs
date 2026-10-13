@@ -238,7 +238,8 @@ public static class DependencyInjection
         {
             case "twilio":
                 services.Configure<TwilioOptions>(configuration.GetSection(TwilioOptions.Section));
-                services.AddScoped<ISmsService, TwilioSmsService>();
+                // Singleton: it owns one HTTP client for the life of the process.
+                services.AddSingleton<ISmsService, TwilioSmsService>();
                 break;
             case "telnyx":
                 services.Configure<TelnyxOptions>(configuration.GetSection(TelnyxOptions.Section));
