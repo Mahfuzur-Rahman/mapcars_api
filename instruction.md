@@ -66,7 +66,13 @@ Mapcars.Infrastructure ← Data layer: EF Core DbContext, repositories, migratio
 | `ConnectionStrings:Postgres` | Aiven staging DB (`MCDev`) | paste the real Aiven **test** password over `YOUR_AIVEN_PASSWORD` |
 | `Jwt:Secret` | test signing key (already set) | fine for test; rotate before production |
 | `Stripe:*`, `Mapbox:AccessToken` | placeholders | fill with **test-mode** keys if you exercise those features |
-| `Email:Provider`, `Sms:Provider` | empty | falls back to console stubs (no real send) |
+| `Email:Provider` | empty | falls back to the console stub (no real send) |
+| `Sms:Provider` | empty | `twilio` sends real SMS (billed); empty = console stub that logs the code |
+| `Sms:Twilio:AccountSid`, `AuthToken` | — | Twilio console → Account info |
+| `Sms:Twilio:FromNumber` | — | `MAPCARS` (text sender name, UK one-way) |
+| `Sms:AllowedRegions` | `["GB"]` | regions whose **mobiles** may sign in by SMS |
+| `Sms:DailySendCap` | `500` | real SMS per 24 h platform-wide; beyond it sends are refused and logged to Error Logger |
+| `Sms:TestNumbers` | `[]` | `[{ "Number": "+447700900001", "Code": "246810" }]`; only `+447700900000`–`+447700900999`, else the API won't start |
 
 There is **no `appsettings.Development.json`** anymore and **no `dotnet
 user-secrets`** step. If the app can't find `Jwt:Secret`, [Program.cs](src/Mapcars.Api/Program.cs)
