@@ -49,7 +49,7 @@ public class CustomerAuthService(
     {
         var normalized = phones.NormalizeLoginPhone(phone);
         var devCode = await otpService.CreateAndSendPhoneOtpAsync(UserType, normalized, ct);
-        return OtpSent($"Verification code sent to {Mask(normalized)}", devCode, resendAfterSeconds: 60);
+        return OtpSent($"Verification code sent to {Mask(normalized)}", devCode, resendAfterSeconds: PhoneSendGuard.CooldownSeconds);
     }
 
     public async Task<AuthResponse> VerifyPhoneOtpAsync(string phone, string code, CancellationToken ct = default)
