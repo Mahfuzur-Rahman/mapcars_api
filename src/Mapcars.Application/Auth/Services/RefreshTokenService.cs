@@ -58,6 +58,16 @@ public class RefreshTokenService : IRefreshTokenService
         return raw;
     }
 
+    /// <summary>
+    /// How long after a rotation the rotated-away token may come back without
+    /// reading as theft. It covers a reply lost on a mobile network (the client
+    /// retries on its next request) and two web requests renewing at once.
+    /// Kept short on purpose: inside this window, someone holding a stolen copy
+    /// could also renew unnoticed. They could already do that by using the
+    /// stolen token before the real client did.
+    /// </summary>
+    public static readonly TimeSpan RotationGrace = TimeSpan.FromSeconds(120);
+
     public async Task<RefreshResponse> RefreshAsync(string refreshToken, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(refreshToken))
@@ -66,15 +76,20 @@ public class RefreshTokenService : IRefreshTokenService
         var existing = await _tokens.GetByHashAsync(Hash(refreshToken), ct)
             ?? throw new UnauthorizedException("Your session has expired. Please sign in again.");
 
-        // A token that was already rotated away is being presented again. Either
-        // this client raced itself, or the token was stolen and someone else got
-        // there first — and we can't tell which. Treat it as theft and kill every
-        // session for the account; the legitimate user signs in once more, the
-        // thief's freshly-rotated token dies with the rest.
+        // A token that was already rotated away is being presented again. Usually
+        // that's theft: someone else got there first, and we can't tell who. So
+        // every session for the account dies, and the real user signs in once
+        // more. The one exception is the same client retrying moments later
+        // because the reply to its first rotation never arrived.
+        var isRetry = false;
         if (existing.RevokedAtUtc is not null)
         {
-            await RevokeAllAsync(existing.UserId, existing.UserType, ct);
-            throw new UnauthorizedException("Your session was ended for security. Please sign in again.");
+            if (!await IsRetryOfLostRotationAsync(existing, ct))
+            {
+                await RevokeAllAsync(existing.UserId, existing.UserType, ct);
+                throw new UnauthorizedException("Your session was ended for security. Please sign in again.");
+            }
+            isRetry = true;
         }
 
         if (existing.IsExpired)
@@ -86,19 +101,24 @@ public class RefreshTokenService : IRefreshTokenService
         if (accessToken is null)
         {
             // The account exists but may no longer sign in (a disabled admin).
-            // Refused exactly like a dead token, and the presented token dies here
-            // so it can't be retried.
-            existing.RevokedAtUtc = DateTime.UtcNow;
+            // It's refused exactly like a dead token, and the presented token
+            // dies here so it can't be retried. A retry's token is already dead.
+            if (!isRetry) existing.RevokedAtUtc = DateTime.UtcNow;
             await _uow.SaveChangesAsync(ct);
             throw new UnauthorizedException("Your session has expired. Please sign in again.");
         }
 
-        // Rotate: the presented token dies, its successor takes over.
         var replacement = NewToken();
         var replacementHash = Hash(replacement);
 
-        existing.RevokedAtUtc = DateTime.UtcNow;
-        existing.ReplacedByTokenHash = replacementHash;
+        // Rotate: the presented token dies and its successor takes over. On a
+        // retry it's already dead, and its first successor is left alone. That
+        // reply never arrived, so nobody holds it, and it expires unused.
+        if (!isRetry)
+        {
+            existing.RevokedAtUtc = DateTime.UtcNow;
+            existing.ReplacedByTokenHash = replacementHash;
+        }
 
         await _tokens.AddAsync(new RefreshToken
         {
@@ -121,6 +141,26 @@ public class RefreshTokenService : IRefreshTokenService
             UserType = existing.UserType,
             UserId = existing.UserId,
         };
+    }
+
+    /// <summary>
+    /// Whether a revoked token is its own client asking again for a rotation
+    /// whose reply it never got. All three must hold:
+    /// <list type="bullet">
+    ///   <item>it was revoked BY ROTATION (logout and revoke-all leave
+    ///   <see cref="RefreshToken.ReplacedByTokenHash"/> empty);</item>
+    ///   <item>that was within <see cref="RotationGrace"/>;</item>
+    ///   <item>its successor has never been used. A used successor proves the
+    ///   reply arrived, so this is a genuine replay.</item>
+    /// </list>
+    /// </summary>
+    private async Task<bool> IsRetryOfLostRotationAsync(RefreshToken presented, CancellationToken ct)
+    {
+        if (presented.ReplacedByTokenHash is null || presented.RevokedAtUtc is null) return false;
+        if (DateTime.UtcNow - presented.RevokedAtUtc.Value > RotationGrace) return false;
+
+        var successor = await _tokens.GetByHashAsync(presented.ReplacedByTokenHash, ct);
+        return successor is not null && successor.IsActive;
     }
 
     public async Task RevokeAsync(string refreshToken, CancellationToken ct = default)
