@@ -202,6 +202,7 @@ public class DriverAuthService(
                 // `email` is non-null only when Google vouched for it. Claiming
                 // first strips any password/sessions an unverified
                 // pre-registration left behind.
+                SocialAccountLink.EnsureClaimable(driver, SocialProvider.Google);
                 await SocialAccountLink.ClaimAsync(driver, refreshTokens, ct);
                 driver.GoogleSub = info.Sub;
             }
@@ -258,6 +259,7 @@ public class DriverAuthService(
 
             if (driver is not null)
             {
+                SocialAccountLink.EnsureClaimable(driver, SocialProvider.Apple);
                 await SocialAccountLink.ClaimAsync(driver, refreshTokens, ct);
                 driver.AppleSub = info.Sub;
             }

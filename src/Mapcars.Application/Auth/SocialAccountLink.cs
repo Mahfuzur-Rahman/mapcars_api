@@ -1,8 +1,12 @@
 using Mapcars.Application.Auth.Interfaces;
 using Mapcars.Domain.Constants;
 using Mapcars.Domain.Entities;
+using Mapcars.Domain.Exceptions;
 
 namespace Mapcars.Application.Auth;
+
+/// <summary>Which social identity is being linked.</summary>
+public enum SocialProvider { Google, Apple }
 
 /// <summary>
 /// The step every Google/Apple sign-in takes before linking itself to an account
@@ -29,6 +33,40 @@ namespace Mapcars.Application.Auth;
 /// </summary>
 public static class SocialAccountLink
 {
+    /// <summary>
+    /// Refuses to link <paramref name="claiming"/> to an account found by email
+    /// when that email was never verified AND the account already has another
+    /// way in: a verified phone, or the other social provider. Claiming strips
+    /// only the password, so the other login would survive. An attacker who
+    /// pointed their own phone account at a victim's address would keep access
+    /// after the victim signed in with Google. (AUDIT_TASKS, option (a).)
+    /// A verified email proves the mailbox owner and links as before.
+    /// Twin overloads, kept identical, because Customer and Driver share no base type.
+    /// </summary>
+    public static void EnsureClaimable(Customer customer, SocialProvider claiming)
+        => EnsureClaimable(customer.IsEmailVerified, customer.IsPhoneVerified,
+            claiming == SocialProvider.Google ? customer.AppleSub : customer.GoogleSub, claiming);
+
+    public static void EnsureClaimable(Driver driver, SocialProvider claiming)
+        => EnsureClaimable(driver.IsEmailVerified, driver.IsPhoneVerified,
+            claiming == SocialProvider.Google ? driver.AppleSub : driver.GoogleSub, claiming);
+
+    private static void EnsureClaimable(bool emailVerified, bool phoneVerified, string? otherProviderSub, SocialProvider claiming)
+    {
+        if (emailVerified) return;
+
+        if (phoneVerified)
+            throw new DomainException(
+                "This email belongs to an account that signs in with a phone number. Please sign in with your phone.");
+
+        if (otherProviderSub is not null)
+        {
+            var other = claiming == SocialProvider.Google ? "Apple" : "Google";
+            throw new DomainException(
+                $"This email belongs to an account that signs in with {other}. Please sign in with {other}.");
+        }
+    }
+
     public static async Task ClaimAsync(Customer customer, IRefreshTokenService refreshTokens, CancellationToken ct)
     {
         if (!customer.IsEmailVerified)

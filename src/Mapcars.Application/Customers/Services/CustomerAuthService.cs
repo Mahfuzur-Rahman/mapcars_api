@@ -202,6 +202,7 @@ public class CustomerAuthService(
                 // Link Google to the existing account — `email` is non-null
                 // only when Google vouched for it. Claiming first strips any
                 // password/sessions an unverified pre-registration left behind.
+                SocialAccountLink.EnsureClaimable(customer, SocialProvider.Google);
                 await SocialAccountLink.ClaimAsync(customer, refreshTokens, ct);
                 customer.GoogleSub = info.Sub;
             }
@@ -264,6 +265,7 @@ public class CustomerAuthService(
 
             if (customer is not null)
             {
+                SocialAccountLink.EnsureClaimable(customer, SocialProvider.Apple);
                 await SocialAccountLink.ClaimAsync(customer, refreshTokens, ct);
                 customer.AppleSub = info.Sub;
             }
