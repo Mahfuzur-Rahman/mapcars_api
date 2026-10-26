@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Security.Claims;
 using System.Text.Json;
@@ -56,6 +57,13 @@ public class ExceptionHandlingMiddleware
         {
             await LogAsync(context, ex, HttpStatusCode.NotFound, ErrorLevel.Warning);
             await WriteProblemAsync(context, HttpStatusCode.NotFound, ex.Message);
+        }
+        catch (TooManyRequestsException ex)
+        {
+            await LogAsync(context, ex, HttpStatusCode.TooManyRequests, ErrorLevel.Warning);
+            context.Response.Headers.RetryAfter = ex.RetryAfterSeconds.ToString(CultureInfo.InvariantCulture);
+            await WriteProblemAsync(context, HttpStatusCode.TooManyRequests, ex.Message,
+                retryAfterSeconds: ex.RetryAfterSeconds);
         }
         catch (DomainException ex)
         {
@@ -129,17 +137,20 @@ public class ExceptionHandlingMiddleware
     private static string? ClientIp(HttpContext context) => context.Connection.RemoteIpAddress?.ToString();
 
     private static async Task WriteProblemAsync(
-        HttpContext context, HttpStatusCode status, string title, object? errors = null)
+        HttpContext context, HttpStatusCode status, string title, object? errors = null, int? retryAfterSeconds = null)
     {
         context.Response.StatusCode = (int)status;
         context.Response.ContentType = "application/problem+json";
 
-        var payload = new
+        // A dictionary rather than an anonymous type so the optional field is
+        // simply absent when unset. Every existing response keeps its exact shape.
+        var payload = new Dictionary<string, object?>
         {
-            title,
-            status = (int)status,
-            errors
+            ["title"] = title,
+            ["status"] = (int)status,
+            ["errors"] = errors,
         };
+        if (retryAfterSeconds is not null) payload["retryAfterSeconds"] = retryAfterSeconds;
 
         await context.Response.WriteAsync(JsonSerializer.Serialize(payload));
     }

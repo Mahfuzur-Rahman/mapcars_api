@@ -6,6 +6,7 @@ using Mapcars.Application.Customers.Services;
 using Mapcars.Application.Drivers.Services;
 using Mapcars.Domain.Constants;
 using Mapcars.Domain.Entities;
+using Mapcars.Domain.Exceptions;
 
 namespace Mapcars.Application.Tests;
 
@@ -40,19 +41,30 @@ public class SocialSignInLinkingTests
     private sealed record Outcome(
         Guid AccountId, string UserType, string? PasswordHash, bool IsEmailVerified, string? LinkedSub, SpyRefreshTokens Tokens);
 
-    private static async Task<Outcome> SignInAsync(SignInPath path, bool emailVerifiedBefore)
+    private static async Task<Outcome> SignInAsync(
+        SignInPath path, bool emailVerifiedBefore, bool phoneVerifiedBefore = false, bool otherProviderLinked = false)
     {
         var spy = new SpyRefreshTokens();
         var uow = new FakeUnitOfWork();
         var jwt = new FakeJwt();
 
         var isCustomer = path is SignInPath.CustomerGoogle or SignInPath.CustomerApple or SignInPath.UnifiedCustomerGoogle;
+        var isGooglePath = path is SignInPath.CustomerGoogle or SignInPath.DriverGoogle
+            or SignInPath.UnifiedCustomerGoogle or SignInPath.UnifiedDriverGoogle;
+        // "The other provider": Apple on a Google claim, Google on an Apple claim.
+        string? otherGoogle = otherProviderLinked && !isGooglePath ? "other-google-sub" : null;
+        string? otherApple = otherProviderLinked && isGooglePath ? "other-apple-sub" : null;
+
         var customer = isCustomer
-            ? new Customer { Email = Victim, PasswordHash = PreExistingHash, IsEmailVerified = emailVerifiedBefore, IsActive = true }
+            ? new Customer { Email = Victim, PasswordHash = PreExistingHash, IsEmailVerified = emailVerifiedBefore,
+                IsPhoneVerified = phoneVerifiedBefore, PhoneNumber = phoneVerifiedBefore ? "+447400123456" : null,
+                GoogleSub = otherGoogle, AppleSub = otherApple, IsActive = true }
             : null;
         var driver = isCustomer
             ? null
-            : new Driver { Email = Victim, PasswordHash = PreExistingHash, IsEmailVerified = emailVerifiedBefore };
+            : new Driver { Email = Victim, PasswordHash = PreExistingHash, IsEmailVerified = emailVerifiedBefore,
+                IsPhoneVerified = phoneVerifiedBefore, PhoneNumber = phoneVerifiedBefore ? "+447400123456" : null,
+                GoogleSub = otherGoogle, AppleSub = otherApple };
         var customers = new FakeCustomerRepo(customer);
         var drivers = new FakeDriverRepo(driver);
 
@@ -135,5 +147,37 @@ public class SocialSignInLinkingTests
         Assert.Equal(PreExistingHash, after.PasswordHash);
         Assert.Empty(after.Tokens.RevokedAll);
         Assert.True(after.IsEmailVerified);
+    }
+
+    [Theory]
+    [MemberData(nameof(AllPaths))]
+    public async Task An_unverified_email_account_with_a_verified_phone_is_not_claimed(SignInPath path)
+    {
+        // Audit option (a). Claiming would strip the password but leave the
+        // phone login. An attacker who pointed their phone account at the
+        // victim's email would keep getting in by phone.
+        var ex = await Assert.ThrowsAsync<DomainException>(
+            () => SignInAsync(path, emailVerifiedBefore: false, phoneVerifiedBefore: true));
+
+        Assert.Equal("This email belongs to an account that signs in with a phone number. Please sign in with your phone.", ex.Message);
+    }
+
+    [Theory]
+    [MemberData(nameof(AllPaths))]
+    public async Task An_unverified_email_account_linked_to_the_other_provider_is_not_claimed(SignInPath path)
+    {
+        var ex = await Assert.ThrowsAsync<DomainException>(
+            () => SignInAsync(path, emailVerifiedBefore: false, otherProviderLinked: true));
+
+        Assert.StartsWith("This email belongs to an account that signs in with ", ex.Message);
+    }
+
+    [Theory]
+    [MemberData(nameof(AllPaths))]
+    public async Task A_verified_email_account_with_a_phone_still_links(SignInPath path)
+    {
+        var after = await SignInAsync(path, emailVerifiedBefore: true, phoneVerifiedBefore: true);
+
+        Assert.NotNull(after.LinkedSub);
     }
 }

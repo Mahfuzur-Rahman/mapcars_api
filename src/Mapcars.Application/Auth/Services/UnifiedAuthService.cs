@@ -100,6 +100,7 @@ public class UnifiedAuthService(
             {
                 // Strips an unverified pre-registration's password/sessions, and
                 // marks the Google-verified address verified (see SocialAccountLink).
+                SocialAccountLink.EnsureClaimable(customer, SocialProvider.Google);
                 await SocialAccountLink.ClaimAsync(customer, refreshTokens, ct);
                 customer.GoogleSub = info.Sub;
                 customerRepo.Update(customer);
@@ -119,6 +120,7 @@ public class UnifiedAuthService(
             driver = await driverRepo.FindByEmailAsync(email, ct);
             if (driver is not null)
             {
+                SocialAccountLink.EnsureClaimable(driver, SocialProvider.Google);
                 await SocialAccountLink.ClaimAsync(driver, refreshTokens, ct);
                 driver.GoogleSub = info.Sub;
                 driverRepo.Update(driver);
