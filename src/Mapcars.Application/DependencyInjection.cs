@@ -78,6 +78,7 @@ public static class DependencyInjection
         services.AddScoped<ITripCompletionEmailer, TripCompletionEmailer>();
         services.AddScoped<IPricingService, PricingService>();
         services.AddScoped<IPaymentSettingsService, PaymentSettingsService>();
+        services.AddScoped<IAppVersionService, AppVersionService>();
         services.AddScoped<IDriverLocationService, DriverLocationService>();
         services.AddScoped<IDispatchService, DispatchService>();
 

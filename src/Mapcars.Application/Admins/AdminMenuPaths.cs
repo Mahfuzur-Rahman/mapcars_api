@@ -39,4 +39,5 @@ public static class AdminMenuPaths
     public const string AdminUsers = "/admin/admins";
     public const string FareSettings = "/admin/fare";
     public const string PaymentSettings = "/admin/settings/payments";
+    public const string AppVersions = "/admin/settings/app-versions";
 }
