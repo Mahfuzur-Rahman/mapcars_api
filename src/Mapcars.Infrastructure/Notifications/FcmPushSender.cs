@@ -22,6 +22,13 @@ public class FcmPushSender(ILogger<FcmPushSender> logger) : IPushSender
         {
             Tokens = tokens.ToList(),
             Notification = new Notification { Title = message.Title, Body = message.Body },
+            // High priority so Doze doesn't delay it, and a channel the apps
+            // create at start-up (max importance) so it shows a banner + sound.
+            Android = new AndroidConfig
+            {
+                Priority = Priority.High,
+                Notification = new AndroidNotification { ChannelId = "mapcars_push" },
+            },
             Data = message.Data?.ToDictionary(kv => kv.Key, kv => kv.Value),
         };
 
