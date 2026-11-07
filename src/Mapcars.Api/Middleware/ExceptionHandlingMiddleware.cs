@@ -65,6 +65,11 @@ public class ExceptionHandlingMiddleware
             await WriteProblemAsync(context, HttpStatusCode.TooManyRequests, ex.Message,
                 retryAfterSeconds: ex.RetryAfterSeconds);
         }
+        catch (ConflictException ex)
+        {
+            await LogAsync(context, ex, HttpStatusCode.Conflict, ErrorLevel.Warning);
+            await WriteProblemAsync(context, HttpStatusCode.Conflict, ex.Message);
+        }
         catch (DomainException ex)
         {
             await LogAsync(context, ex, HttpStatusCode.BadRequest, ErrorLevel.Warning);
