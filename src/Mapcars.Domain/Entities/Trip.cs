@@ -193,4 +193,13 @@ public class Trip : BaseEntity
 
     /// <summary>Set only when a driver cancels after arriving because the customer never showed up.</summary>
     public bool IsNoShow { get; set; }
+
+    // ─── Chat read state ──────────────────────────────────────────────────────
+
+    /// <summary>When the customer last read this trip's chat. Null = never opened.
+    /// Unread = driver messages sent after this. See <c>ChatPolicy</c>.</summary>
+    public DateTime? CustomerChatReadAtUtc { get; set; }
+
+    /// <summary>When the driver last read this trip's chat. Null = never opened.</summary>
+    public DateTime? DriverChatReadAtUtc { get; set; }
 }

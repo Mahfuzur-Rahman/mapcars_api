@@ -108,6 +108,7 @@ Write new scripts idempotent where practical (`CREATE TABLE IF NOT EXISTS`,
 | `045_phone_login.sql` | `verification_codes` (+2 indexes for the SMS send limits); `customers`/`drivers` `"PhoneNumber"` rewritten to E.164 (`07…`, `+4407…`, `447…` → `+447…`). Aborts unchanged on a collision. Inspected 2026-10-13: all 4 stored phones already E.164, so part 2 is a no-op on that data. Additive and idempotent. Apply **with or before** the API image that enforces send limits. **Applied 2026-10-28** (deploy 14). |
 | `046_app_versions_menu.sql` | `menus`/`role_menus`: "App versions" under Settings (row 16, `/admin/settings/app-versions`), SuperAdmin + Admin, seeded **inactive**. No table: the values live in `app_settings` key `app-versions`, created on first read. Idempotent; safe to apply any time. **Applied 2026-10-31** (row 58, hidden) |
 | `047_activate_app_versions_menu.sql` | Reveals the 046 row. **Applied 2026-10-31** after deploy 15. ⚠️ **Run at deploy time, AFTER the web build with the app-versions page is live** — until then the admin endpoints answer 403 (menu access requires `is_active`), while the apps' public `GET /api/v1/app-version` works regardless |
+| `048_chat_read_state.sql` | `trips` `"CustomerChatReadAtUtc"` / `"DriverChatReadAtUtc"` (per-party chat read state for unread counts + the Messages inbox). Backfills both to `NOW()` on trips that already have messages and two NULLs, so old chats don't light up as unread. Nullable, idempotent; safe before the API image. **Applied 2026-11-07**. |
 
 ## Conventions
 
