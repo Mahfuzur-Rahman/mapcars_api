@@ -1,3 +1,4 @@
+using System.Globalization;
 using Mapcars.Application.Common.Exceptions;
 using Mapcars.Application.Common.Interfaces;
 using Mapcars.Application.Messages.Dtos;
@@ -13,10 +14,10 @@ using Mapcars.Domain.Entities;
 namespace Mapcars.Application.Messages.Services;
 
 /// <summary>
-/// Business logic for in-trip chat messages. Either the customer or the driver on
-/// an active trip may send and list messages. No trip-status restriction beyond
-/// "the caller is a participant" — chat is available from assignment through
-/// completion.
+/// Business logic for trip chat messages. Either the customer or the driver on a
+/// trip may list its messages at any time. Sending follows <see cref="ChatPolicy.CanSend"/>:
+/// open from assignment until <see cref="ChatOptions.SendWindow"/> after completion
+/// (lost property), closed for cancelled/expired trips.
 /// </summary>
 public class MessageService : IMessageService
 {
@@ -25,16 +26,18 @@ public class MessageService : IMessageService
     private readonly IUnitOfWork _uow;
     private readonly ITripNotifier _notifier;
     private readonly IPushService _push;
+    private readonly ChatOptions _chat;
 
     public MessageService(
         IMessageRepository messages, ITripRepository trips, IUnitOfWork uow, ITripNotifier notifier,
-        IPushService push)
+        IPushService push, ChatOptions chat)
     {
         _messages = messages;
         _trips = trips;
         _uow = uow;
         _notifier = notifier;
         _push = push;
+        _chat = chat;
     }
 
     public async Task<MessageResponse> SendAsync(
@@ -42,16 +45,23 @@ public class MessageService : IMessageService
     {
         var trip = await GetParticipantTripAsync(callerType, callerId, tripId, ct);
 
+        var now = DateTime.UtcNow;
+        if (!ChatPolicy.CanSend(trip.Status, trip.CompletedAtUtc, now, _chat.SendWindow))
+            throw new ConflictException("This chat has closed.");
+
         var message = new TripMessage
         {
             TripId = tripId,
             SenderType = callerType,
             SenderId = callerId,
             Content = request.Content,
-            SentAtUtc = DateTime.UtcNow,
+            SentAtUtc = now,
         };
         await _messages.AddAsync(message, ct);
         await _uow.SaveChangesAsync(ct);
+
+        // Writing is reading: the sender has seen everything up to their own message.
+        await _messages.MarkReadAsync(tripId, callerType, now, ct);
 
         var response = message.ToResponse();
 
@@ -59,12 +69,10 @@ public class MessageService : IMessageService
         // fails the send. The message is already persisted.
         _ = _notifier.MessageReceivedAsync(tripId, response, ct);
 
-        // SignalR only reaches a client with the app open and the socket up. A
-        // customer whose phone is in their pocket, or a driver between jobs, sees
-        // nothing at all — so the message also goes out as a push, to the other
-        // party only. Best-effort, like the realtime one: chat must not fail
-        // because a notification could not be delivered.
-        NotifyCounterpartAsync(trip, callerType, request.Content, ct);
+        // SignalR only reaches a client with the trip open and the socket up. The
+        // push reaches everyone else — and, in the foreground, the apps read the
+        // whole message out of its data to update the inbox without a round trip.
+        await NotifyCounterpartAsync(trip, response, ct);
 
         return response;
     }
@@ -83,7 +91,7 @@ public class MessageService : IMessageService
     /// Pushes a new message to whichever party did not send it.
     /// </summary>
     /// <remarks>
-    /// Fire-and-forget by design, matching the realtime push above: the message
+    /// The push itself is fire-and-forget, matching the realtime one: the message
     /// is already persisted and returned, and a dead FCM token must not turn a
     /// successful send into a failed request.
     ///
@@ -92,27 +100,46 @@ public class MessageService : IMessageService
     /// open the app to learn whether it mattered. Trip chat is short-lived and
     /// operational ("I'm at the side entrance"), not private correspondence.
     ///
+    /// The data carries the whole message plus the recipient's unread total, so a
+    /// foregrounded app can update its inbox and badge without a round trip.
+    ///
     /// Sends nothing if the trip has no driver yet: an unassigned trip has no
     /// counterpart to notify.
     /// </remarks>
-    private void NotifyCounterpartAsync(Trip trip, string senderType, string content, CancellationToken ct)
+    private async Task NotifyCounterpartAsync(Trip trip, MessageResponse message, CancellationToken ct)
     {
-        var isFromCustomer = senderType == UserTypes.Customer;
+        var isFromCustomer = !UserTypes.IsDriver(message.SenderType);
         var recipientType = isFromCustomer ? UserTypes.Driver : UserTypes.Customer;
         var recipientId = isFromCustomer ? trip.DriverId : trip.CustomerId;
         if (recipientId is null || recipientId == Guid.Empty) return;
+
+        var data = new Dictionary<string, string>
+        {
+            ["type"] = "messageReceived",
+            ["tripId"] = trip.Id.ToString(),
+            ["messageId"] = message.Id.ToString(),
+            ["senderType"] = UserTypes.Canonical(message.SenderType),
+            ["senderId"] = message.SenderId.ToString(),
+            ["content"] = message.Content,
+            ["sentAtUtc"] = message.SentAtUtc.ToString("O", CultureInfo.InvariantCulture),
+        };
+        try
+        {
+            var unread = await _messages.CountUnreadByTripAsync(recipientType, recipientId.Value, ct);
+            data["unreadTotal"] = unread.Sum(c => c.Count).ToString(CultureInfo.InvariantCulture);
+        }
+        catch (Exception)
+        {
+            // The badge re-syncs on the recipient's next app resume; never fail a send over it.
+        }
 
         _ = _push.NotifyUserAsync(
             recipientType,
             recipientId.Value,
             new PushMessage(
                 isFromCustomer ? "Message from your passenger" : "Message from your driver",
-                content,
-                new Dictionary<string, string>
-                {
-                    ["type"] = "messageReceived",
-                    ["tripId"] = trip.Id.ToString(),
-                }),
+                message.Content,
+                data),
             ct);
     }
 

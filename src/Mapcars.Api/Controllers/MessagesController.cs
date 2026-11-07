@@ -24,6 +24,7 @@ public class MessagesController : ControllerBase
     [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Send(Guid tripId, [FromBody] SendMessageRequest request, CancellationToken ct)
     {
         var (userType, userId) = CurrentUser();

@@ -29,6 +29,9 @@ public class FcmPushSender(ILogger<FcmPushSender> logger) : IPushSender
                 Priority = Priority.High,
                 Notification = new AndroidNotification { ChannelId = "mapcars_push" },
             },
+            // iOS plays no sound unless the payload asks for one. (Delivery itself
+            // still needs the APNs key uploaded to Firebase — a deploy step.)
+            Apns = new ApnsConfig { Aps = new Aps { Sound = "default" } },
             Data = message.Data?.ToDictionary(kv => kv.Key, kv => kv.Value),
         };
 

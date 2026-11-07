@@ -11,6 +11,7 @@ using Mapcars.Application.Drivers.Interfaces;
 using Mapcars.Application.Emails.Interfaces;
 using Mapcars.Application.ErrorLogs.Interfaces;
 using Mapcars.Application.Geo.Interfaces;
+using Mapcars.Application.Messages;
 using Mapcars.Application.Messages.Interfaces;
 using Mapcars.Application.Notifications.Interfaces;
 using Mapcars.Application.Payments.Interfaces;
@@ -76,6 +77,11 @@ public static class DependencyInjection
         services.AddScoped<ISavedPlaceRepository, SavedPlaceRepository>();
         services.AddScoped<IRatingRepository, RatingRepository>();
         services.AddScoped<IMessageRepository, MessageRepository>();
+        // Chat send window after completion (lost items). Env: Chat__SendWindowHours.
+        services.AddSingleton(new ChatOptions
+        {
+            SendWindowHours = configuration.GetValue("Chat:SendWindowHours", 24),
+        });
         services.AddScoped<IDriverPayoutAccountRepository, DriverPayoutAccountRepository>();
         services.AddScoped<IPayoutRepository, PayoutRepository>();
         services.AddScoped<ICustomerPaymentMethodRepository, CustomerPaymentMethodRepository>();

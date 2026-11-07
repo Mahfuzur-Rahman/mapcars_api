@@ -90,6 +90,7 @@ public static class DependencyInjection
         services.AddScoped<ISavedPlaceService, SavedPlaceService>();
         services.AddScoped<IRatingService, RatingService>();
         services.AddScoped<IMessageService, MessageService>();
+        services.AddScoped<IConversationService, ConversationService>();
         services.AddScoped<IDriverReviewService, DriverReviewService>();
         services.AddScoped<IPayoutService, PayoutService>();
         services.AddScoped<IPushService, PushService>();
